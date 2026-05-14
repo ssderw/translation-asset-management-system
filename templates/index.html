@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>翻译资产管理系统</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+.navbar { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.navbar-brand { font-weight: 700; }
+.card { border: none; box-shadow: 0 1px 4px rgba(0,0,0,.06); border-radius: 10px; }
+.search-box { position: relative; }
+.autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: #fff; border: 1px solid #dee2e6; border-radius: 0 0 8px 8px; max-height: 280px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,.1); display: none; }
+.autocomplete-dropdown .ac-item { padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+.autocomplete-dropdown .ac-item:hover { background: #e8f0fe; }
+.autocomplete-dropdown .ac-item .zh { font-weight: 600; color: #1a73e8; }
+.autocomplete-dropdown .ac-item .en { color: #5f6368; font-size: .85em; }
+.tag-badge { display: inline-block; padding: 2px 8px; margin: 2px; background: #e8f0fe; color: #1a73e8; border-radius: 12px; font-size: .78em; cursor: pointer; }
+.tag-badge .tag-remove { margin-left: 4px; cursor: pointer; opacity: .6; }
+.tag-badge .tag-remove:hover { opacity: 1; color: #d93025; }
+.copy-btn { cursor: pointer; color: #5f6368; border: none; background: none; padding: 2px 6px; transition: color .15s; }
+.copy-btn:hover { color: #1a73e8; }
+.copy-btn.copied { color: #0d904f; }
+.table-clickable tr { cursor: pointer; }
+.table-clickable tr:hover { background: #f8f9fa; }
+.filter-row { display: flex; gap: 0; align-items: stretch; }
+.filter-row .tag-select { width: 150px; flex-shrink: 0; }
+.filter-row .search-wrapper { flex: 1; position: relative; }
+.modal-lg-custom { max-width: 700px; }
+.login-container { max-width: 420px; margin: 10vh auto; }
+.nav-link { cursor: pointer; }
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+.pagination { margin-bottom: 0; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.modal-backdrop { z-index: 1050; }
+</style>
+</head>
+<body>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ==================== LOGIN PAGE ==================== -->
+<div id="loginPage" style="display:none;">
+  <div class="login-container">
+    <div class="card p-4">
+      <h3 class="text-center mb-3">翻译资产管理系统</h3>
+      <ul class="nav nav-pills mb-3 justify-content-center" id="authTabs">
+        <li class="nav-item"><a class="nav-link active" data-mode="login" href="#">登录</a></li>
+        <li class="nav-item"><a class="nav-link" data-mode="register" href="#">注册</a></li>
+      </ul>
+      <div id="loginForm">
+        <div class="mb-3"><label class="form-label">用户名</label><input class="form-control" id="loginUsername" placeholder="请输入用户名"></div>
+        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" id="loginPassword" placeholder="请输入密码"></div>
+        <button class="btn btn-primary w-100" id="loginBtn">登录</button>
+      </div>
+      <div id="registerForm" style="display:none;">
+        <div class="mb-3"><label class="form-label">用户名</label><input class="form-control" id="regUsername" placeholder="至少2个字符"></div>
+        <div class="mb-3"><label class="form-label">密码</label><input type="password" class="form-control" id="regPassword" placeholder="至少4个字符"></div>
+        <div class="mb-3"><label class="form-label">确认密码</label><input type="password" class="form-control" id="regPassword2" placeholder="再次输入密码"></div>
+        <button class="btn btn-success w-100" id="registerBtn">注册</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="appPage" style="display:none;">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container-fluid">
+      <span class="navbar-brand"><i class="bi bi-translate"></i> 翻译资产管理系统</span>
+      <div class="d-flex">
+        <span class="navbar-text me-3" id="navUser"></span>
+        <button class="btn btn-outline-light btn-sm" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> 退出</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tab Navigation -->
+  <div class="container-fluid mt-3">
+    <ul class="nav nav-tabs" id="mainTabs">
+      <li class="nav-item"><a class="nav-link active" data-tab="tab-home" href="#"><i class="bi bi-house"></i> 首页</a></li>
+      <li class="nav-item"><a class="nav-link" data-tab="tab-expr-manage" href="#"><i class="bi bi-journal-text"></i> 固定表达管理</a></li>
+      <li class="nav-item"><a class="nav-link" data-tab="tab-tmpl-manage" href="#"><i class="bi bi-file-earmark"></i> 模板管理</a></li>
+      <li class="nav-item"><a class="nav-link" data-tab="tab-tags" href="#"><i class="bi bi-tags"></i> 全局标签管理</a></li>
+      <li class="nav-item"><a class="nav-link" data-tab="tab-logs" href="#"><i class="bi bi-clock-history"></i> 日志记录</a></li>
+    </ul>
+
+    <!-- ===== HOME TAB ===== -->
+    <div class="tab-pane active mt-3" id="tab-home">
+      <!-- Expression Search -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title"><i class="bi bi-search"></i> 固定表达查询</h5>
+          <div class="filter-row">
+            <select class="form-select tag-select" id="homeExprTagFilter"><option value="">全部标签</option></select>
+            <div class="search-wrapper">
+              <input class="form-control" id="homeExprSearch" placeholder="输入中文或英文关键词搜索（支持 * 通配符）" autocomplete="off">
+              <div class="autocomplete-dropdown" id="homeExprAc"></div>
+            </div>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-hover table-clickable" id="homeExprTable">
+              <thead><tr><th>中文</th><th>英文</th><th>领域</th><th>备注</th><th>标签</th><th style="width:90px">操作</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="homeExprPager"></div>
+        </div>
+      </div>
+
+      <!-- Template Search -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title"><i class="bi bi-search"></i> 模板查询</h5>
+          <div class="filter-row">
+            <select class="form-select tag-select" id="homeTmplTagFilter"><option value="">全部标签</option></select>
+            <div class="search-wrapper">
+              <input class="form-control" id="homeTmplSearch" placeholder="输入模板名关键词搜索（支持 * 通配符）" autocomplete="off">
+              <div class="autocomplete-dropdown" id="homeTmplAc"></div>
+            </div>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-hover table-clickable" id="homeTmplTable">
+              <thead><tr><th>模板名</th><th>领域</th><th>备注</th><th>标签</th><th style="width:90px">操作</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="homeTmplPager"></div>
+        </div>
+      </div>
+
+      <!-- Recent Logs -->
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0"><i class="bi bi-clock-history"></i> 最近操作日志</h5>
+            <button class="btn btn-outline-primary btn-sm" id="viewAllLogsBtn">查看全部日志</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm"><thead><tr><th>时间</th><th>类型</th><th>对象</th><th>操作</th><th>详情</th></tr></thead><tbody id="homeLogsBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EXPRESSION MANAGE TAB ===== -->
+    <div class="tab-pane mt-3" id="tab-expr-manage">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-3">
+            <h5 class="mb-0"><i class="bi bi-journal-text"></i> 固定表达管理</h5>
+            <div>
+              <button class="btn btn-primary btn-sm" id="exprAddBtn"><i class="bi bi-plus-lg"></i> 手动添加</button>
+              <button class="btn btn-outline-primary btn-sm" id="exprImportBtn"><i class="bi bi-upload"></i> 批量导入</button>
+              <input type="file" id="exprImportFile" accept=".csv,.xlsx,.xls" style="display:none">
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover"><thead><tr><th>ID</th><th>中文</th><th>英文</th><th>领域</th><th>标签</th><th>使用频率</th><th style="width:120px">操作</th></tr></thead><tbody id="exprManageBody"></tbody></table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="exprManagePager"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TEMPLATE MANAGE TAB ===== -->
+    <div class="tab-pane mt-3" id="tab-tmpl-manage">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-3">
+            <h5 class="mb-0"><i class="bi bi-file-earmark"></i> 模板管理</h5>
+            <div>
+              <button class="btn btn-primary btn-sm" id="tmplAddBtn"><i class="bi bi-plus-lg"></i> 添加模板</button>
+              <button class="btn btn-success btn-sm" id="tmplBatchBtn"><i class="bi bi-upload"></i> 批量上传</button>
+              <button class="btn btn-outline-danger btn-sm" id="tmplClearAllBtn"><i class="bi bi-trash"></i> 清空模板</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover"><thead><tr><th>ID</th><th>模板名</th><th>领域</th><th>标签</th><th>文件名</th><th>使用频率</th><th style="width:120px">操作</th></tr></thead><tbody id="tmplManageBody"></tbody></table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="tmplManagePager"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAGS TAB ===== -->
+    <div class="tab-pane mt-3" id="tab-tags">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-3">
+            <h5 class="mb-0"><i class="bi bi-tags"></i> 全局标签管理</h5>
+            <div class="input-group" style="width:300px">
+              <input class="form-control" id="tagNewName" placeholder="新标签名">
+              <button class="btn btn-primary" id="tagAddBtn">添加</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover"><thead><tr><th>ID</th><th>标签名</th><th>关联词条数</th><th>关联模板数</th><th style="width:160px">操作</th></tr></thead><tbody id="tagsBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== LOGS TAB ===== -->
+    <div class="tab-pane mt-3" id="tab-logs">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="bi bi-clock-history"></i> 操作日志</h5>
+          <div class="table-responsive">
+            <table class="table table-hover"><thead><tr><th>ID</th><th>时间</th><th>操作类型</th><th>对象类型</th><th>操作人</th><th>IP</th><th style="width:180px">操作</th></tr></thead><tbody id="logsBody"></tbody></table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="logsPager"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Expression Detail/Edit Modal -->
+<div class="modal fade" id="exprDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg-custom"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">词条详情</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label">中文</label><input class="form-control" id="edtChinese"></div>
+        <div class="col-6"><label class="form-label">英文</label><input class="form-control" id="edtEnglish"></div>
+        <div class="col-6"><label class="form-label">领域</label><input class="form-control" id="edtDomain"></div>
+        <div class="col-6"><label class="form-label">备注</label><input class="form-control" id="edtNotes"></div>
+      </div>
+      <div class="mt-2"><label class="form-label">标签</label>
+        <div class="d-flex flex-wrap align-items-center gap-1 mb-1" id="edtTagsContainer"></div>
+        <select class="form-select form-select-sm" id="edtTagSelect" style="width:auto"><option value="">+ 添加标签</option></select>
+      </div>
+      <div class="mt-3" id="edtInfo"></div>
+      <div class="mt-2"><strong>修改历史：</strong><div id="edtHistory" class="small text-muted"></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button><button class="btn btn-primary" id="edtSaveBtn">保存修改</button></div>
+  </div></div>
+</div>
+
+<!-- Template Detail/Edit Modal -->
+<div class="modal fade" id="tmplDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg-custom"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">模板详情</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label">模板名</label><input class="form-control" id="tdtName"></div>
+        <div class="col-6"><label class="form-label">领域</label><input class="form-control" id="tdtDomain"></div>
+        <div class="col-12"><label class="form-label">备注</label><input class="form-control" id="tdtNotes"></div>
+      </div>
+      <div class="mt-2"><label class="form-label">标签</label>
+        <div class="d-flex flex-wrap align-items-center gap-1 mb-1" id="tdtTagsContainer"></div>
+        <select class="form-select form-select-sm" id="tdtTagSelect" style="width:auto"><option value="">+ 添加标签</option></select>
+      </div>
+      <div class="mt-2"><label class="form-label">上传新文件（可选）</label><input type="file" class="form-control" id="tdtFile"></div>
+      <div class="mt-2" id="tdtInfo"></div>
+      <div class="mt-2"><label class="form-label">文件内容预览：</label><pre class="bg-light p-2" style="max-height:200px;overflow:auto;font-size:.8em;white-space:pre-wrap;word-break:break-all" id="tdtContent"></pre></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-success" id="tdtDownloadBtn"><i class="bi bi-download"></i> 下载文件</button><button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button><button class="btn btn-primary" id="tdtSaveBtn">保存修改</button></div>
+  </div></div>
+</div>
+
+<!-- Add Expression Modal -->
+<div class="modal fade" id="exprAddModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">添加词条</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-2"><label class="form-label">中文 <span class="text-danger">*</span></label><input class="form-control" id="addChinese"></div>
+      <div class="mb-2"><label class="form-label">英文 <span class="text-danger">*</span></label><input class="form-control" id="addEnglish"></div>
+      <div class="mb-2"><label class="form-label">领域</label><input class="form-control" id="addDomain"></div>
+      <div class="mb-2"><label class="form-label">备注</label><input class="form-control" id="addNotes"></div>
+      <div class="mb-2"><label class="form-label">标签</label><div class="d-flex flex-wrap gap-1 mb-1" id="addTagsContainer"></div>
+        <select class="form-select form-select-sm" id="addTagSelect" style="width:auto"><option value="">+ 添加标签</option></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-primary" id="addSaveBtn">保存</button></div>
+  </div></div>
+</div>
+
+<!-- Add Template Modal -->
+<div class="modal fade" id="tmplAddModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">添加模板</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-2"><label class="form-label">模板名 <span class="text-danger">*</span></label><input class="form-control" id="atmplName"></div>
+      <div class="mb-2"><label class="form-label">领域</label><input class="form-control" id="atmplDomain"></div>
+      <div class="mb-2"><label class="form-label">备注</label><input class="form-control" id="atmplNotes"></div>
+      <div class="mb-2"><label class="form-label">上传文件</label><input type="file" class="form-control" id="atmplFile" multiple></div>
+      <div class="mb-2"><label class="form-label">标签</label><div class="d-flex flex-wrap gap-1 mb-1" id="atmplTagsContainer"></div>
+        <select class="form-select form-select-sm" id="atmplTagSelect" style="width:auto"><option value="">+ 添加标签</option></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-primary" id="atmplSaveBtn">保存</button></div>
+  </div></div>
+</div>
+
+<!-- Batch Upload Template Modal -->
+<div class="modal fade" id="tmplBatchModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title"><i class="bi bi-upload"></i> 批量上传模板</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">选择文件 <span class="text-danger">*</span></label>
+        <input type="file" class="form-control" id="batchTmplFile" multiple accept=".txt,.csv,.xlsx,.xls,.docx,.pdf,.tmx,.xml,.json,.html,.md,.doc,.ppt,.pptx">
+        <div class="form-text">可多选文件，模板名将默认使用文件名（支持中文 UTF-8 文件名）</div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label">领域（统一设置）</label><input class="form-control" id="batchTmplDomain" placeholder="本批次模板的领域"></div>
+        <div class="col-6"><label class="form-label">备注（统一设置）</label><input class="form-control" id="batchTmplNotes" placeholder="本批次模板的备注"></div>
+      </div>
+      <div class="mb-2"><label class="form-label">标签（统一设置）</label>
+        <div class="d-flex flex-wrap gap-1 mb-1" id="batchTmplTagsContainer"></div>
+        <select class="form-select form-select-sm" id="batchTmplTagSelect" style="width:auto"><option value="">+ 添加标签</option></select>
+      </div>
+      <div id="batchTmplFileList" class="small text-muted mt-2"></div>
+      <div id="batchTmplProgress" class="mt-2 d-none">
+        <div class="d-flex align-items-center gap-2">
+          <div class="spinner-border spinner-border-sm text-primary"></div>
+          <span id="batchTmplProgressText">正在上传...</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-success" id="batchTmplSaveBtn"><i class="bi bi-upload"></i> 开始上传</button></div>
+  </div></div>
+</div>
+
+<!-- Batch Import Result Modal -->
+<div class="modal fade" id="importResultModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">批量导入结果</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="importResultBody"></div>
+    <div class="modal-footer"><button class="btn btn-primary" data-bs-dismiss="modal">确定</button></div>
+  </div></div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-sm"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">确认操作</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="confirmBody"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-danger" id="confirmOkBtn">确认</button></div>
+  </div></div>
+</div>
+
+<!-- Rollback Confirm Modal -->
+<div class="modal fade" id="rollbackModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">确认回撤</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="rollbackBody"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-warning" id="rollbackOkBtn">确认回撤</button></div>
+  </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ==================== UTILS ====================
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const api = (url, opts = {}) => fetch(url, { credentials: 'same-origin', ...opts }).then(r => r.json());
+const apiPost = (url, data) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+const apiPut = (url, data) => api(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+const apiDelete = (url) => api(url, { method: 'DELETE' });
+
+function toast(msg, type = 'info') {
+  const container = $('#toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast align-items-center text-bg-${type} border-0`;
+  el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+  container.appendChild(el);
+  const bs = new bootstrap.Toast(el, { delay: 3000 });
+  bs.show();
+  el.addEventListener('hidden.bs.toast', () => el.remove());
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function formatDate(s) { if (!s) return ''; return new Date(s.replace(' ', 'T') + '+08:00').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }); }
+
+let debounceTimer;
+function debounce(fn, ms = 300) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(fn, ms);
+}
+
+const LOG_ACTION_MAP = { 'add': '新增', 'edit': '编辑', 'delete': '删除', 'rollback': '回撤', 'batch_add': '批量导入' };
+const LOG_TARGET_MAP = { 'expression': '词条', 'template': '模板', 'tag': '标签', 'user': '用户' };
+const LOG_ACTION_COLOR = { 'add': 'success', 'edit': 'warning', 'delete': 'danger', 'rollback': 'info', 'batch_add': 'primary' };
+
+function formatLogSummary(l) {
+  const action = LOG_ACTION_MAP[l.action_type] || l.action_type;
+  const target = LOG_TARGET_MAP[l.target_type] || l.target_type;
+  let details = l.details;
+  if (typeof details === 'string') {
+    try { details = JSON.parse(details); } catch(e) { details = {}; }
+  }
+  if (!details) details = {};
+
+  let detailText = '';
+  if (l.action_type === 'add' || l.action_type === 'delete') {
+    if (l.target_type === 'expression') {
+      detailText = `「${details.chinese || ''}」→「${details.english || ''}」`;
+    } else if (l.target_type === 'template') {
+      detailText = `「${details.name || ''}」`;
+    } else if (l.target_type === 'tag') {
+      detailText = `「${details.name || ''}」`;
+    } else if (l.target_type === 'user') {
+      detailText = `「${details.username || ''}」`;
+    }
+  } else if (l.action_type === 'edit') {
+    if (l.target_type === 'expression') {
+      const b = details.before || {};
+      const a = details.after || {};
+      const parts = [];
+      if (b.chinese !== a.chinese) parts.push(`中文：${b.chinese || '空'} → ${a.chinese || '空'}`);
+      if (b.english !== a.english) parts.push(`英文：${b.english || '空'} → ${a.english || '空'}`);
+      if (b.domain !== a.domain) parts.push(`领域：${b.domain || '空'} → ${a.domain || '空'}`);
+      detailText = parts.length ? parts.join('；') : '未做实质性修改';
+    } else if (l.target_type === 'template') {
+      const b = details.before || {};
+      const a = details.after || {};
+      detailText = `「${b.name || ''}」→「${a.name || ''}」`;
+    } else if (l.target_type === 'tag') {
+      detailText = `「${details.before || ''}」→「${details.after || ''}」`;
+    }
+  } else if (l.action_type === 'batch_add') {
+    detailText = `共导入 ${details.imported || 0} 条，跳过重复 ${details.skipped || 0} 条`;
+  } else if (l.action_type === 'rollback') {
+    detailText = `回撤了日志 #${details.rolled_back_log_id || ''}`;
+  }
+  return `${action}${target} ${detailText}`;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (e) { }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); document.body.removeChild(ta); return true; }
+  catch (e) { document.body.removeChild(ta); return false; }
+}
+
+let confirmCallback = null;
+function showConfirm(msg, cb) {
+  $('#confirmBody').textContent = msg;
+  confirmCallback = cb;
+  new bootstrap.Modal('#confirmModal').show();
+}
+$('#confirmOkBtn').addEventListener('click', () => { if (confirmCallback) { confirmCallback(); confirmCallback = null; } bootstrap.Modal.getInstance('#confirmModal').hide(); });
+
+let rollbackCallback = null;
+function showRollback(msg, cb) {
+  $('#rollbackBody').textContent = msg;
+  rollbackCallback = cb;
+  new bootstrap.Modal('#rollbackModal').show();
+}
+$('#rollbackOkBtn').addEventListener('click', () => { if (rollbackCallback) { rollbackCallback(); rollbackCallback = null; } bootstrap.Modal.getInstance('#rollbackModal').hide(); });
+
+
+// ==================== GLOBAL STATE ====================
+let globalTags = [];
+let exprSearchTags = [];  // tags selected in expression search filter
+
+function loadGlobalTags() {
+  return api('/api/tags').then(d => { globalTags = d.tags; });
+}
+
+function populateTagSelect(selId, selectedIds = []) {
+  const sel = $(selId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">+ 添加标签</option>';
+  globalTags.forEach(t => {
+    if (!selectedIds.includes(t.id)) {
+      sel.innerHTML += `<option value="${t.id}">${escHtml(t.name)}</option>`;
+    }
+  });
+}
+
+function populateTagFilter(selId) {
+  const sel = $(selId);
+  if (!sel) return;
+  let html = '<option value="">全部标签</option>';
+  globalTags.forEach(t => { html += `<option value="${t.id}">${escHtml(t.name)}</option>`; });
+  sel.innerHTML = html;
+}
+
+function renderTagBadges(tags, containerId, removable = false, onRemove = null) {
+  const c = $(containerId);
+  if (!c) return;
+  c.innerHTML = tags.map(t => {
+    const rm = removable ? `<span class="tag-remove" data-tid="${t.id}">&times;</span>` : '';
+    return `<span class="tag-badge">${escHtml(t.name)}${rm}</span>`;
+  }).join('');
+  if (removable && onRemove) {
+    c.querySelectorAll('.tag-remove').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); onRemove(parseInt(el.dataset.tid)); });
+    });
+  }
+}
+
+
+// ==================== AUTH ====================
+let currentMode = 'login';
+$('#authTabs').addEventListener('click', (e) => {
+  if (e.target.dataset.mode) {
+    currentMode = e.target.dataset.mode;
+    $$('#authTabs .nav-link').forEach(l => l.classList.remove('active'));
+    e.target.classList.add('active');
+    $('#loginForm').style.display = currentMode === 'login' ? 'block' : 'none';
+    $('#registerForm').style.display = currentMode === 'register' ? 'block' : 'none';
+  }
+});
+
+$('#loginBtn').addEventListener('click', async () => {
+  const username = $('#loginUsername').value.trim();
+  const password = $('#loginPassword').value;
+  if (!username || !password) { toast('请输入用户名和密码', 'warning'); return; }
+  const d = await apiPost('/api/auth/login', { username, password });
+  if (d.success) { checkAuth(); } else { toast(d.message, 'danger'); }
+});
+
+$('#registerBtn').addEventListener('click', async () => {
+  const username = $('#regUsername').value.trim();
+  const password = $('#regPassword').value;
+  const password2 = $('#regPassword2').value;
+  if (!username || !password) { toast('请填写用户名和密码', 'warning'); return; }
+  if (password !== password2) { toast('两次密码不一致', 'warning'); return; }
+  const d = await apiPost('/api/auth/register', { username, password });
+  if (d.success) {
+    toast(d.message, 'success');
+    currentMode = 'login';
+    $$('#authTabs .nav-link').forEach(l => l.classList.remove('active'));
+    $$('#authTabs .nav-link')[0].classList.add('active');
+    $('#loginForm').style.display = 'block';
+    $('#registerForm').style.display = 'none';
+  } else { toast(d.message, 'danger'); }
+});
+
+$('#loginPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); });
+
+$('#logoutBtn').addEventListener('click', async () => {
+  await apiPost('/api/auth/logout', {});
+  checkAuth();
+});
+
+async function checkAuth() {
+  const d = await api('/api/auth/status');
+  if (d.authenticated) {
+    $('#loginPage').style.display = 'none';
+    $('#appPage').style.display = 'block';
+    $('#navUser').textContent = `欢迎，${escHtml(d.user.username)}`;
+    await loadGlobalTags();
+    populateTagFilter('#homeExprTagFilter');
+    populateTagFilter('#homeTmplTagFilter');
+    loadHomeExpr();
+    loadHomeTmpl();
+    loadHomeLogs();
+  } else {
+    $('#loginPage').style.display = 'block';
+    $('#appPage').style.display = 'none';
+  }
+}
+
+
+// ==================== TAB SWITCHING ====================
+$('#mainTabs').addEventListener('click', (e) => {
+  if (e.target.dataset.tab) {
+    $$('#mainTabs .nav-link').forEach(l => l.classList.remove('active'));
+    e.target.classList.add('active');
+    $$('.tab-pane').forEach(p => p.classList.remove('active'));
+    $(`#${e.target.dataset.tab}`).classList.add('active');
+    if (e.target.dataset.tab === 'tab-expr-manage') loadExprManage();
+    if (e.target.dataset.tab === 'tab-tmpl-manage') loadTmplManage();
+    if (e.target.dataset.tab === 'tab-tags') loadTagManage();
+    if (e.target.dataset.tab === 'tab-logs') loadLogsPage();
+  }
+});
+
+$('#viewAllLogsBtn').addEventListener('click', () => {
+  $$('#mainTabs .nav-link').forEach(l => l.classList.remove('active'));
+  const logTab = document.querySelector('[data-tab="tab-logs"]');
+  logTab.classList.add('active');
+  $$('.tab-pane').forEach(p => p.classList.remove('active'));
+  $('#tab-logs').classList.add('active');
+  loadLogsPage();
+});
+
+
+// ==================== HOME - EXPRESSION SEARCH ====================
+let homeExprPage = 1;
+
+async function loadHomeExpr(page = 1) {
+  homeExprPage = page;
+  const search = $('#homeExprSearch').value.trim();
+  const tagId = $('#homeExprTagFilter').value;
+  const params = new URLSearchParams({ search, page, per_page: 10 });
+  if (tagId) params.set('tag_id', tagId);
+  const d = await api(`/api/expressions?${params}`);
+  renderHomeExprTable(d);
+  renderPager('homeExprPager', d.page, d.total_pages, loadHomeExpr);
+}
+
+function renderHomeExprTable(d) {
+  const tbody = $('#homeExprTable tbody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">无匹配结果</td></tr>'; return; }
+  tbody.innerHTML = d.data.map(r => `
+    <tr data-id="${r.id}">
+      <td>${escHtml(r.chinese)}</td><td>${escHtml(r.english)}</td><td>${escHtml(r.domain)}</td>
+      <td class="text-truncate" style="max-width:150px">${escHtml(r.notes)}</td>
+      <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}</span>`).join('')}</td>
+      <td>
+        <button class="copy-btn copy-zh" title="复制中文" data-text="${escHtml(r.chinese)}"><i class="bi bi-clipboard"></i>中</button>
+        <button class="copy-btn copy-en" title="复制英文" data-text="${escHtml(r.english)}"><i class="bi bi-clipboard"></i>英</button>
+      </td>
+    </tr>`).join('');
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.copy-btn')) return;
+      showExprDetail(parseInt(row.dataset.id));
+    });
+  });
+  tbody.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const text = btn.dataset.text;
+      const ok = await copyText(text);
+      if (ok) {
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1500);
+        const row = btn.closest('tr');
+        if (row) apiPost(`/api/expressions/${row.dataset.id}/copy`, {});
+        toast('已复制到剪贴板', 'success');
+      } else {
+        toast('复制失败：浏览器不支持剪贴板操作，请手动复制', 'danger');
+      }
+    });
+  });
+}
+
+// Expression autocomplete
+$('#homeExprSearch').addEventListener('input', () => {
+  debounce(async () => {
+    const q = $('#homeExprSearch').value.trim();
+    if (q.length < 1) { $('#homeExprAc').style.display = 'none'; return; }
+    const tagId = $('#homeExprTagFilter').value;
+    const params = new URLSearchParams({ q });
+    if (tagId) params.set('tag_id', tagId);
+    const d = await api(`/api/expressions/autocomplete?${params}`);
+    const ac = $('#homeExprAc');
+    if (!d.suggestions.length) { ac.style.display = 'none'; return; }
+    ac.innerHTML = d.suggestions.map(s => `
+      <div class="ac-item" data-text="${escHtml(s.chinese)}" data-id="${s.id}">
+        <div class="zh">${escHtml(s.chinese)}</div>
+        <div class="en">${escHtml(s.english)}</div>
+      </div>`).join('');
+    ac.style.display = 'block';
+    ac.querySelectorAll('.ac-item').forEach(item => {
+      item.addEventListener('click', () => {
+        $('#homeExprSearch').value = item.dataset.text;
+        ac.style.display = 'none';
+        loadHomeExpr();
+      });
+    });
+  }, 300);
+});
+$('#homeExprSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { $('#homeExprAc').style.display = 'none'; loadHomeExpr(); } });
+document.addEventListener('click', (e) => { if (!e.target.closest('#homeExprSearch') && !e.target.closest('#homeExprAc')) $('#homeExprAc').style.display = 'none'; });
+$('#homeExprTagFilter').addEventListener('change', () => { loadHomeExpr(); });
+
+
+// ==================== HOME - TEMPLATE SEARCH ====================
+let homeTmplPage = 1;
+
+async function loadHomeTmpl(page = 1) {
+  homeTmplPage = page;
+  const search = $('#homeTmplSearch').value.trim();
+  const tagId = $('#homeTmplTagFilter').value;
+  const params = new URLSearchParams({ search, page, per_page: 10 });
+  if (tagId) params.set('tag_id', tagId);
+  const d = await api(`/api/templates?${params}`);
+  renderHomeTmplTable(d);
+  renderPager('homeTmplPager', d.page, d.total_pages, loadHomeTmpl);
+}
+
+// ==================== TEMPLATE DOWNLOAD ====================
+async function downloadTemplateFile(tid) {
+  const d = await api(`/api/templates/${tid}`);
+  if (!d.data) { toast('模板不存在', 'danger'); return; }
+  if (!d.data.file_path && !d.data.content) { toast('该模板没有上传文件，无法下载', 'warning'); return; }
+
+  const filename = d.data.filename || d.data.name || `template_${tid}.txt`;
+  const a = document.createElement('a');
+  a.href = `/api/templates/${tid}/download`;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  apiPost(`/api/templates/${tid}/copy`, {});
+  toast('模板下载已开始', 'success');
+}
+
+function renderHomeTmplTable(d) {
+  const tbody = $('#homeTmplTable tbody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">无匹配结果</td></tr>'; return; }
+  tbody.innerHTML = d.data.map(r => `
+    <tr data-id="${r.id}">
+      <td>${escHtml(r.name)}</td><td>${escHtml(r.domain)}</td><td class="text-truncate" style="max-width:150px">${escHtml(r.notes)}</td>
+      <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}</span>`).join('')}</td>
+      <td><button class="btn btn-sm btn-outline-success dl-tmpl-btn" title="下载模板文件" data-id="${r.id}"><i class="bi bi-download"></i></button></td>
+    </tr>`).join('');
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.dl-tmpl-btn')) return;
+      showTmplDetail(parseInt(row.dataset.id));
+    });
+  });
+  tbody.querySelectorAll('.dl-tmpl-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      downloadTemplateFile(parseInt(btn.dataset.id));
+    });
+  });
+}
+
+$('#homeTmplSearch').addEventListener('input', () => {
+  debounce(async () => {
+    const q = $('#homeTmplSearch').value.trim();
+    if (q.length < 1) { $('#homeTmplAc').style.display = 'none'; return; }
+    const tagId = $('#homeTmplTagFilter').value;
+    const params = new URLSearchParams({ q });
+    if (tagId) params.set('tag_id', tagId);
+    const d = await api(`/api/templates/autocomplete?${params}`);
+    const ac = $('#homeTmplAc');
+    if (!d.suggestions.length) { ac.style.display = 'none'; return; }
+    ac.innerHTML = d.suggestions.map(s => `<div class="ac-item" data-text="${escHtml(s.name)}" data-id="${s.id}"><div>${escHtml(s.name)}</div></div>`).join('');
+    ac.style.display = 'block';
+    ac.querySelectorAll('.ac-item').forEach(item => {
+      item.addEventListener('click', () => {
+        $('#homeTmplSearch').value = item.dataset.text;
+        ac.style.display = 'none';
+        loadHomeTmpl();
+      });
+    });
+  }, 300);
+});
+$('#homeTmplSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { $('#homeTmplAc').style.display = 'none'; loadHomeTmpl(); } });
+document.addEventListener('click', (e) => { if (!e.target.closest('#homeTmplSearch') && !e.target.closest('#homeTmplAc')) $('#homeTmplAc').style.display = 'none'; });
+$('#homeTmplTagFilter').addEventListener('change', () => { loadHomeTmpl(); });
+
+
+// ==================== HOME - RECENT LOGS ====================
+async function loadHomeLogs() {
+  const d = await api('/api/logs/recent');
+  const tbody = $('#homeLogsBody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无操作记录</td></tr>'; return; }
+  tbody.innerHTML = d.data.map(l => `
+    <tr>
+      <td>${formatDate(l.created_at)}</td>
+      <td><span class="badge bg-${LOG_ACTION_COLOR[l.action_type] || 'secondary'}">${LOG_ACTION_MAP[l.action_type] || l.action_type}</span></td>
+      <td>${LOG_TARGET_MAP[l.target_type] || l.target_type}</td>
+      <td>${escHtml(l.operator)}</td>
+      <td class="text-truncate" style="max-width:250px">${escHtml(formatLogSummary(l))}</td>
+    </tr>`).join('');
+}
+
+
+// ==================== EXPRESSION DETAIL MODAL ====================
+let edtExprId = null;
+let edtExprTags = [];
+
+function makeTagRemover(tagsArr, containerId, selectId) {
+  return (tid) => {
+    const idx = tagsArr.findIndex(t => t.id === tid);
+    if (idx >= 0) {
+      tagsArr.splice(idx, 1);
+      renderTagBadges(tagsArr, containerId, true, makeTagRemover(tagsArr, containerId, selectId));
+      populateTagSelect(selectId, tagsArr.map(t => t.id));
+    }
+  };
+}
+
+async function showExprDetail(eid) {
+  edtExprId = eid;
+  const d = await api(`/api/expressions/${eid}`);
+  const r = d.data;
+  $('#edtChinese').value = r.chinese;
+  $('#edtEnglish').value = r.english;
+  $('#edtDomain').value = r.domain || '';
+  $('#edtNotes').value = r.notes || '';
+  edtExprTags = r.tags ? [...r.tags] : [];
+  renderTagBadges(edtExprTags, 'edtTagsContainer', true, makeTagRemover(edtExprTags, 'edtTagsContainer', '#edtTagSelect'));
+  populateTagSelect('#edtTagSelect', edtExprTags.map(t => t.id));
+  $('#edtInfo').innerHTML = `使用频率：<strong>${r.usage_count}</strong> | 最后修改：${formatDate(r.updated_at)} | 修改人：${escHtml(r.updated_by||'')} | IP：${escHtml(r.updated_ip||'')}`;
+  const hist = r.history || [];
+  $('#edtHistory').innerHTML = hist.length ? hist.map(h => `<div>${formatDate(h.created_at)} - ${LOG_ACTION_MAP[h.action_type] || h.action_type}${h.operator ? ' by ' + escHtml(h.operator) : ''}</div>`).join('') : '暂无修改记录';
+  new bootstrap.Modal('#exprDetailModal').show();
+}
+
+$('#edtTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#edtTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !edtExprTags.find(t => t.id === tid)) {
+    edtExprTags.push(tag);
+    renderTagBadges(edtExprTags, 'edtTagsContainer', true, makeTagRemover(edtExprTags, 'edtTagsContainer', '#edtTagSelect'));
+    populateTagSelect('#edtTagSelect', edtExprTags.map(t => t.id));
+  }
+  $('#edtTagSelect').value = '';
+});
+
+$('#edtSaveBtn').addEventListener('click', async () => {
+  const data = {
+    chinese: $('#edtChinese').value.trim(),
+    english: $('#edtEnglish').value.trim(),
+    domain: $('#edtDomain').value.trim(),
+    notes: $('#edtNotes').value.trim(),
+    tag_ids: edtExprTags.map(t => t.id)
+  };
+  if (!data.chinese || !data.english) { toast('中文和英文为必填项', 'warning'); return; }
+  const d = await apiPut(`/api/expressions/${edtExprId}`, data);
+  if (d.success) { toast('修改成功', 'success'); bootstrap.Modal.getInstance('#exprDetailModal').hide(); loadHomeExpr(homeExprPage); }
+  else { toast(d.message, 'danger'); }
+});
+
+
+// ==================== TEMPLATE DETAIL MODAL ====================
+let tdtTmplId = null;
+let tdtTmplTags = [];
+
+async function showTmplDetail(tid) {
+  tdtTmplId = tid;
+  const d = await api(`/api/templates/${tid}`);
+  const r = d.data;
+  $('#tdtName').value = r.name;
+  $('#tdtDomain').value = r.domain || '';
+  $('#tdtNotes').value = r.notes || '';
+  $('#tdtContent').textContent = r.preview || r.content || '(无内容)';
+  $('#tdtFile').value = '';
+  tdtTmplTags = r.tags ? [...r.tags] : [];
+  renderTagBadges(tdtTmplTags, 'tdtTagsContainer', true, makeTagRemover(tdtTmplTags, 'tdtTagsContainer', '#tdtTagSelect'));
+  populateTagSelect('#tdtTagSelect', tdtTmplTags.map(t => t.id));
+  $('#tdtInfo').innerHTML = `使用频率：<strong>${r.usage_count}</strong> | 文件名：${escHtml(r.filename||'无')} | 最后修改：${formatDate(r.updated_at)}`;
+  new bootstrap.Modal('#tmplDetailModal').show();
+}
+
+$('#tdtTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#tdtTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !tdtTmplTags.find(t => t.id === tid)) {
+    tdtTmplTags.push(tag);
+    renderTagBadges(tdtTmplTags, 'tdtTagsContainer', true, makeTagRemover(tdtTmplTags, 'tdtTagsContainer', '#tdtTagSelect'));
+    populateTagSelect('#tdtTagSelect', tdtTmplTags.map(t => t.id));
+  }
+  $('#tdtTagSelect').value = '';
+});
+
+$('#tdtDownloadBtn').addEventListener('click', () => { downloadTemplateFile(tdtTmplId); });
+
+$('#tdtSaveBtn').addEventListener('click', async () => {
+  const formData = new FormData();
+  formData.set('name', $('#tdtName').value.trim());
+  formData.set('domain', $('#tdtDomain').value.trim());
+  formData.set('notes', $('#tdtNotes').value.trim());
+  formData.set('tag_ids', JSON.stringify(tdtTmplTags.map(t => t.id)));
+  const file = $('#tdtFile').files[0];
+  if (file) formData.append('file', file);
+  const d = await fetch(`/api/templates/${tdtTmplId}`, { method: 'PUT', body: formData, credentials: 'same-origin' }).then(r => r.json());
+  if (d.success) { toast('修改成功', 'success'); bootstrap.Modal.getInstance('#tmplDetailModal').hide(); loadHomeTmpl(homeTmplPage); }
+  else { toast(d.message, 'danger'); }
+});
+
+
+// ==================== EXPRESSION MANAGE ====================
+let exprManagePage = 1;
+let exprAddTags = [];
+
+async function loadExprManage(page = 1) {
+  exprManagePage = page;
+  const d = await api(`/api/expressions?page=${page}&per_page=10`);
+  const tbody = $('#exprManageBody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无词条</td></tr>'; $('#exprManagePager').innerHTML = ''; return; }
+  tbody.innerHTML = d.data.map(r => `
+    <tr>
+      <td>${r.id}</td><td>${escHtml(r.chinese)}</td><td>${escHtml(r.english)}</td><td>${escHtml(r.domain)}</td>
+      <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}<span class="tag-remove" data-tid="${t.id}" data-eid="${r.id}">&times;</span></span>`).join('')}</td>
+      <td>${r.usage_count}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary edit-expr" data-id="${r.id}">编辑</button>
+        <button class="btn btn-sm btn-outline-danger del-expr" data-id="${r.id}">删除</button>
+      </td>
+    </tr>`).join('');
+  tbody.querySelectorAll('.tag-remove').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const eid = parseInt(el.dataset.eid);
+      const tid = parseInt(el.dataset.tid);
+      const expr = d.data.find(r => r.id === eid);
+      const newTags = (expr.tags||[]).filter(t => t.id !== tid).map(t => t.id);
+      await apiPut(`/api/expressions/${eid}`, { chinese: expr.chinese, english: expr.english, domain: expr.domain, notes: expr.notes, tag_ids: newTags });
+      loadExprManage(exprManagePage);
+    });
+  });
+  tbody.querySelectorAll('.edit-expr').forEach(btn => { btn.addEventListener('click', () => showExprDetail(parseInt(btn.dataset.id))); });
+  tbody.querySelectorAll('.del-expr').forEach(btn => {
+    btn.addEventListener('click', () => showConfirm('确定删除该词条？', async () => {
+      await apiDelete(`/api/expressions/${btn.dataset.id}`);
+      loadExprManage(exprManagePage);
+      toast('已删除', 'success');
+    }));
+  });
+  renderPager('exprManagePager', d.page, d.total_pages, loadExprManage);
+}
+
+// Add expression modal
+$('#exprAddBtn').addEventListener('click', () => {
+  $('#addChinese').value = ''; $('#addEnglish').value = ''; $('#addDomain').value = ''; $('#addNotes').value = '';
+  exprAddTags = [];
+  renderTagBadges([], 'addTagsContainer');
+  populateTagSelect('#addTagSelect', []);
+  new bootstrap.Modal('#exprAddModal').show();
+});
+
+$('#addTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#addTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !exprAddTags.find(t => t.id === tid)) {
+    exprAddTags.push(tag);
+    renderTagBadges(exprAddTags, 'addTagsContainer', true, makeTagRemover(exprAddTags, 'addTagsContainer', '#addTagSelect'));
+    populateTagSelect('#addTagSelect', exprAddTags.map(t => t.id));
+  }
+  $('#addTagSelect').value = '';
+});
+
+$('#addSaveBtn').addEventListener('click', async () => {
+  const data = { chinese: $('#addChinese').value.trim(), english: $('#addEnglish').value.trim(), domain: $('#addDomain').value.trim(), notes: $('#addNotes').value.trim(), tag_ids: exprAddTags.map(t => t.id) };
+  if (!data.chinese || !data.english) { toast('中文和英文为必填项', 'warning'); return; }
+  const d = await apiPost('/api/expressions', data);
+  if (d.success) { toast('添加成功', 'success'); bootstrap.Modal.getInstance('#exprAddModal').hide(); loadExprManage(); }
+  else { toast(d.message, 'danger'); }
+});
+
+// Batch import
+$('#exprImportBtn').addEventListener('click', () => $('#exprImportFile').click());
+$('#exprImportFile').addEventListener('change', async () => {
+  const file = $('#exprImportFile').files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  const d = await fetch('/api/expressions/batch-import', { method: 'POST', body: formData, credentials: 'same-origin' }).then(r => r.json());
+  $('#importResultBody').innerHTML = `
+    <p>导入成功：<strong>${d.imported}</strong> 条</p>
+    <p>跳过重复：<strong>${d.skipped}</strong> 条</p>
+    ${d.errors?.length ? `<p class="text-danger">错误：${d.errors.map(e => `第${e.row}行 - ${e.message}`).join('<br>')}</p>` : ''}`;
+  new bootstrap.Modal('#importResultModal').show();
+  $('#exprImportFile').value = '';
+  loadExprManage();
+});
+
+
+// ==================== TEMPLATE MANAGE ====================
+let tmplManagePage = 1;
+let atmplTags = [];
+
+async function loadTmplManage(page = 1) {
+  tmplManagePage = page;
+  const d = await api(`/api/templates?page=${page}&per_page=10`);
+  const tbody = $('#tmplManageBody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无模板</td></tr>'; $('#tmplManagePager').innerHTML = ''; return; }
+  tbody.innerHTML = d.data.map(r => `
+    <tr>
+      <td>${r.id}</td><td>${escHtml(r.name)}</td><td>${escHtml(r.domain)}</td>
+      <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}<span class="tag-remove" data-tid="${t.id}" data-tid2="${r.id}">&times;</span></span>`).join('')}</td>
+      <td>${escHtml(r.filename||'无')}</td><td>${r.usage_count}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary edit-tmpl" data-id="${r.id}">编辑</button>
+        ${(r.file_path || r.content) ? `<button class="btn btn-sm btn-outline-success dl-tmpl-mgmt" data-id="${r.id}">下载</button>` : ''}
+        <button class="btn btn-sm btn-outline-danger del-tmpl" data-id="${r.id}">删除</button>
+      </td>
+    </tr>`).join('');
+  tbody.querySelectorAll('.tag-remove').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const tid = parseInt(el.dataset.tid);
+      const tid2 = parseInt(el.dataset.tid2);
+      const tmpl = d.data.find(r => r.id === tid2);
+      const newTags = (tmpl.tags||[]).filter(t => t.id !== tid).map(t => t.id);
+      const formData = new FormData();
+      formData.set('name', tmpl.name); formData.set('domain', tmpl.domain||''); formData.set('notes', tmpl.notes||'');
+      formData.set('tag_ids', JSON.stringify(newTags));
+      await fetch(`/api/templates/${tid2}`, { method: 'PUT', body: formData, credentials: 'same-origin' });
+      loadTmplManage(tmplManagePage);
+    });
+  });
+  tbody.querySelectorAll('.edit-tmpl').forEach(btn => { btn.addEventListener('click', () => showTmplDetail(parseInt(btn.dataset.id))); });
+  tbody.querySelectorAll('.dl-tmpl-mgmt').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); downloadTemplateFile(parseInt(btn.dataset.id)); });
+  });
+  tbody.querySelectorAll('.del-tmpl').forEach(btn => {
+    btn.addEventListener('click', () => showConfirm('确定删除该模板？', async () => {
+      await apiDelete(`/api/templates/${btn.dataset.id}`);
+      loadTmplManage(tmplManagePage);
+      toast('已删除', 'success');
+    }));
+  });
+  renderPager('tmplManagePager', d.page, d.total_pages, loadTmplManage);
+}
+
+// Add template modal
+$('#tmplAddBtn').addEventListener('click', () => {
+  $('#atmplName').value = ''; $('#atmplDomain').value = ''; $('#atmplNotes').value = ''; $('#atmplFile').value = '';
+  atmplTags = [];
+  renderTagBadges([], 'atmplTagsContainer');
+  populateTagSelect('#atmplTagSelect', []);
+  new bootstrap.Modal('#tmplAddModal').show();
+});
+
+$('#atmplTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#atmplTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !atmplTags.find(t => t.id === tid)) {
+    atmplTags.push(tag);
+    renderTagBadges(atmplTags, 'atmplTagsContainer', true, makeTagRemover(atmplTags, 'atmplTagsContainer', '#atmplTagSelect'));
+    populateTagSelect('#atmplTagSelect', atmplTags.map(t => t.id));
+  }
+  $('#atmplTagSelect').value = '';
+});
+
+$('#atmplSaveBtn').addEventListener('click', async () => {
+  const files = $('#atmplFile').files;
+  const baseName = $('#atmplName').value.trim();
+  const domain = $('#atmplDomain').value.trim();
+  const notes = $('#atmplNotes').value.trim();
+  const tagIdsJson = JSON.stringify(atmplTags.map(t => t.id));
+
+  let count = 0;
+  if (files.length > 0) {
+    for (const file of files) {
+      const formData = new FormData();
+      const fname = baseName || file.name;
+      formData.set('name', fname);
+      formData.set('domain', domain);
+      formData.set('notes', notes);
+      formData.set('tag_ids', tagIdsJson);
+      formData.append('file', file);
+      const d = await fetch('/api/templates', { method: 'POST', body: formData, credentials: 'same-origin' }).then(r => r.json());
+      if (d.success) count++;
+    }
+  } else {
+    if (!baseName) { toast('模板名不能为空', 'warning'); return; }
+    const formData = new FormData();
+    formData.set('name', baseName);
+    formData.set('domain', domain);
+    formData.set('notes', notes);
+    formData.set('tag_ids', tagIdsJson);
+    const d = await fetch('/api/templates', { method: 'POST', body: formData, credentials: 'same-origin' }).then(r => r.json());
+    if (d.success) count++;
+  }
+  toast(`成功添加 ${count} 个模板`, 'success');
+  bootstrap.Modal.getInstance('#tmplAddModal').hide();
+  loadTmplManage();
+});
+
+
+// ==================== BATCH TEMPLATE UPLOAD ====================
+let batchTmplTags = [];
+
+$('#tmplBatchBtn').addEventListener('click', () => {
+  $('#batchTmplFile').value = '';
+  $('#batchTmplDomain').value = '';
+  $('#batchTmplNotes').value = '';
+  batchTmplTags = [];
+  renderTagBadges([], 'batchTmplTagsContainer');
+  populateTagSelect('#batchTmplTagSelect', []);
+  $('#batchTmplFileList').innerHTML = '';
+  $('#batchTmplProgress').classList.add('d-none');
+  $('#batchTmplSaveBtn').disabled = false;
+  new bootstrap.Modal('#tmplBatchModal').show();
+});
+
+$('#batchTmplFile').addEventListener('change', () => {
+  const files = $('#batchTmplFile').files;
+  if (files.length === 0) {
+    $('#batchTmplFileList').innerHTML = '';
+    return;
+  }
+  let html = `<strong>已选择 ${files.length} 个文件：</strong><ul class="mb-0 mt-1">`;
+  for (const f of files) {
+    html += `<li>${escHtml(f.name)} <span class="text-muted">(${(f.size / 1024).toFixed(1)} KB)</span></li>`;
+  }
+  html += '</ul><div class="text-muted">模板名将默认使用文件名</div>';
+  $('#batchTmplFileList').innerHTML = html;
+});
+
+$('#batchTmplTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#batchTmplTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !batchTmplTags.find(t => t.id === tid)) {
+    batchTmplTags.push(tag);
+    renderTagBadges(batchTmplTags, 'batchTmplTagsContainer', true, makeTagRemover(batchTmplTags, 'batchTmplTagsContainer', '#batchTmplTagSelect'));
+    populateTagSelect('#batchTmplTagSelect', batchTmplTags.map(t => t.id));
+  }
+  $('#batchTmplTagSelect').value = '';
+});
+
+$('#batchTmplSaveBtn').addEventListener('click', async () => {
+  const files = $('#batchTmplFile').files;
+  if (files.length === 0) { toast('请选择要上传的文件', 'warning'); return; }
+
+  const domain = $('#batchTmplDomain').value.trim();
+  const notes = $('#batchTmplNotes').value.trim();
+  const tagIdsJson = JSON.stringify(batchTmplTags.map(t => t.id));
+
+  $('#batchTmplSaveBtn').disabled = true;
+  $('#batchTmplProgress').classList.remove('d-none');
+  $('#batchTmplProgressText').textContent = `正在上传 0 / ${files.length}...`;
+
+  let success = 0, fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const formData = new FormData();
+    formData.set('name', file.name);
+    formData.set('domain', domain);
+    formData.set('notes', notes);
+    formData.set('tag_ids', tagIdsJson);
+    formData.append('file', file);
+    try {
+      const d = await fetch('/api/templates', { method: 'POST', body: formData, credentials: 'same-origin' }).then(r => r.json());
+      if (d.success) success++; else fail++;
+    } catch (e) { fail++; }
+    $('#batchTmplProgressText').textContent = `正在上传 ${i + 1} / ${files.length}...`;
+  }
+
+  $('#batchTmplProgress').classList.add('d-none');
+  toast(`上传完成：成功 ${success} 个${fail > 0 ? `，失败 ${fail} 个` : ''}`, fail > 0 ? 'warning' : 'success');
+  bootstrap.Modal.getInstance('#tmplBatchModal').hide();
+  loadTmplManage();
+});
+
+$('#tmplClearAllBtn').addEventListener('click', () => {
+  showConfirm('确定要清空所有模板吗？此操作不可逆，所有模板文件将被删除！', async () => {
+    const d = await apiDelete('/api/templates/clear-all');
+    if (d.success) { toast(d.message, 'success'); loadTmplManage(); loadHomeTmpl(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
+
+
+// ==================== TAG MANAGE ====================
+async function loadTagManage() {
+  await loadGlobalTags();
+  const tbody = $('#tagsBody');
+  if (!globalTags.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无标签</td></tr>'; return; }
+  tbody.innerHTML = globalTags.map(t => `
+    <tr>
+      <td>${t.id}</td>
+      <td><span id="tagName_${t.id}">${escHtml(t.name)}</span><input class="form-control form-control-sm d-none" id="tagInput_${t.id}" value="${escHtml(t.name)}"></td>
+      <td>${t.expression_count}</td><td>${t.template_count}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-warning rename-tag" data-id="${t.id}">重命名</button>
+        <button class="btn btn-sm btn-outline-success save-tag d-none" data-id="${t.id}">保存</button>
+        <button class="btn btn-sm btn-outline-danger del-tag" data-id="${t.id}">删除</button>
+      </td>
+    </tr>`).join('');
+  tbody.querySelectorAll('.rename-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tid = btn.dataset.id;
+      $(`#tagName_${tid}`).classList.add('d-none');
+      $(`#tagInput_${tid}`).classList.remove('d-none');
+      btn.classList.add('d-none');
+      $(`button.save-tag[data-id="${tid}"]`).classList.remove('d-none');
+    });
+  });
+  tbody.querySelectorAll('.save-tag').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tid = btn.dataset.id;
+      const newName = $(`#tagInput_${tid}`).value.trim();
+      if (!newName) { toast('标签名不能为空', 'warning'); return; }
+      const d = await apiPut(`/api/tags/${tid}`, { name: newName });
+      if (d.success) { toast('标签已重命名（所有关联已同步更新）', 'success'); loadTagManage(); loadHomeExpr(); loadHomeTmpl(); }
+      else { toast(d.message, 'danger'); }
+    });
+  });
+  tbody.querySelectorAll('.del-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tid = btn.dataset.id;
+      const tag = globalTags.find(t => t.id === parseInt(tid));
+      const warn = tag ? `删除标签"${tag.name}"？（关联的 ${tag.expression_count} 个词条和 ${tag.template_count} 个模板将解除关联）` : '确定删除？';
+      showConfirm(warn, async () => {
+        await apiDelete(`/api/tags/${tid}`);
+        toast('标签已删除', 'success');
+        loadTagManage();
+        loadHomeExpr();
+        loadHomeTmpl();
+      });
+    });
+  });
+}
+
+$('#tagAddBtn').addEventListener('click', async () => {
+  const name = $('#tagNewName').value.trim();
+  if (!name) { toast('请输入标签名', 'warning'); return; }
+  const d = await apiPost('/api/tags', { name });
+  if (d.success) { toast('标签创建成功', 'success'); $('#tagNewName').value = ''; loadTagManage(); }
+  else { toast(d.message, 'danger'); }
+});
+
+
+// ==================== LOGS PAGE ====================
+async function loadLogsPage(page = 1) {
+  const d = await api(`/api/logs?page=${page}&per_page=15`);
+  const tbody = $('#logsBody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无日志</td></tr>'; $('#logsPager').innerHTML = ''; return; }
+  tbody.innerHTML = d.data.map(l => {
+    const isRolledBack = l.rollback_of !== null;
+    const canRollback = !isRolledBack && (l.action_type === 'add' || l.action_type === 'edit' || l.action_type === 'delete');
+    const actionName = LOG_ACTION_MAP[l.action_type] || l.action_type;
+    const targetName = LOG_TARGET_MAP[l.target_type] || l.target_type;
+    return `<tr>
+      <td>${l.id}</td><td>${formatDate(l.created_at)}</td>
+      <td><span class="badge bg-${LOG_ACTION_COLOR[l.action_type] || 'secondary'}">${actionName}</span>${isRolledBack?' <span class="badge bg-info">已回撤</span>':''}</td>
+      <td>${targetName}</td><td>${escHtml(l.operator)}</td><td>${escHtml(l.operator_ip)}</td>
+      <td>
+        ${canRollback ? `<button class="btn btn-sm btn-outline-warning rollback-btn" data-id="${l.id}">回撤</button>` : ''}
+        <button class="btn btn-sm btn-outline-secondary view-log-btn" data-id="${l.id}">详情</button>
+      </td>
+    </tr>`;
+  }).join('');
+  tbody.querySelectorAll('.rollback-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      showRollback(`确定要回撤操作 #${btn.dataset.id} 及其之后的所有操作吗？此操作不可逆！`, async () => {
+        const rd = await apiPost(`/api/logs/${btn.dataset.id}/rollback`, {});
+        if (rd.success) { toast(rd.message, 'success'); loadLogsPage(d.page); loadHomeExpr(); loadHomeTmpl(); loadHomeLogs(); }
+        else { toast(rd.message, 'danger'); }
+      });
+    });
+  });
+  tbody.querySelectorAll('.view-log-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const log = d.data.find(l => l.id === parseInt(btn.dataset.id));
+      if (log) {
+        const summary = formatLogSummary(log);
+        const detailStr = typeof log.details === 'string' ? log.details : JSON.stringify(log.details, null, 2);
+        alert(`操作详情\n\n${summary}\n\n原始数据：\n${detailStr}`);
+      }
+    });
+  });
+  renderPager('logsPager', d.page, d.total_pages, loadLogsPage);
+}
+
+
+// ==================== PAGINATION HELPER ====================
+function renderPager(containerId, page, totalPages, loadFn) {
+  const c = $(`#${containerId}`);
+  if (!c) return;
+  if (totalPages <= 1) { c.innerHTML = ''; return; }
+  let html = '<nav><ul class="pagination pagination-sm mb-0">';
+  html += `<li class="page-item ${page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-p="${page - 1}">上一页</a></li>`;
+  for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
+    html += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#" data-p="${i}">${i}</a></li>`;
+  }
+  html += `<li class="page-item ${page >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#" data-p="${page + 1}">下一页</a></li>`;
+  html += `<span class="ms-2 text-muted small">共 ${totalPages} 页</span>`;
+  html += '</ul></nav>';
+  c.innerHTML = html;
+  c.querySelectorAll('a.page-link').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const p = parseInt(a.dataset.p);
+      if (p >= 1 && p <= totalPages) loadFn(p);
+    });
+  });
+}
+
+
+// ==================== INIT ====================
+checkAuth();
+</script>
+</body>
+</html>
