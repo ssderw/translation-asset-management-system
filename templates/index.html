@@ -104,7 +104,7 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
           </div>
           <div class="table-responsive mt-3">
             <table class="table table-hover table-clickable" id="homeExprTable">
-              <thead><tr><th>中文</th><th>英文</th><th>领域</th><th>备注</th><th>标签</th><th style="width:90px">操作</th></tr></thead>
+              <thead><tr><th>中文</th><th>英文</th><th>领域</th><th>备注</th><th>标签</th><th style="width:130px">操作</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -125,7 +125,7 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
           </div>
           <div class="table-responsive mt-3">
             <table class="table table-hover table-clickable" id="homeTmplTable">
-              <thead><tr><th>模板名</th><th>领域</th><th>备注</th><th>标签</th><th style="width:90px">操作</th></tr></thead>
+              <thead><tr><th>模板名</th><th>领域</th><th>备注</th><th>标签</th><th style="width:130px">操作</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -378,7 +378,7 @@ function toast(msg, type = 'info') {
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-function formatDate(s) { if (!s) return ''; return new Date(s.replace(' ', 'T') + '+08:00').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }); }
+function formatDate(s) { if (!s) return ''; const d = new Date(s); return isNaN(d.getTime()) ? s : d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }); }
 
 let debounceTimer;
 function debounce(fn, ms = 300) {
@@ -606,6 +606,8 @@ async function loadHomeExpr(page = 1) {
   const d = await api(`/api/expressions?${params}`);
   renderHomeExprTable(d);
   renderPager('homeExprPager', d.page, d.total_pages, loadHomeExpr);
+  $('#homeExprSearch').value = '';
+  $('#homeExprAc').style.display = 'none';
 }
 
 function renderHomeExprTable(d) {
@@ -619,12 +621,23 @@ function renderHomeExprTable(d) {
       <td>
         <button class="copy-btn copy-zh" title="复制中文" data-text="${escHtml(r.chinese)}"><i class="bi bi-clipboard"></i>中</button>
         <button class="copy-btn copy-en" title="复制英文" data-text="${escHtml(r.english)}"><i class="bi bi-clipboard"></i>英</button>
+        <button class="btn btn-sm btn-outline-danger del-home-expr" title="删除词条" data-id="${r.id}"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
   tbody.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.copy-btn')) return;
+      if (e.target.closest('.copy-btn') || e.target.closest('.del-home-expr')) return;
       showExprDetail(parseInt(row.dataset.id));
+    });
+  });
+  tbody.querySelectorAll('.del-home-expr').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showConfirm('确定删除该词条？', async () => {
+        await apiDelete(`/api/expressions/${btn.dataset.id}`);
+        loadHomeExpr(homeExprPage);
+        toast('已删除', 'success');
+      });
     });
   });
   tbody.querySelectorAll('.copy-btn').forEach(btn => {
@@ -688,6 +701,8 @@ async function loadHomeTmpl(page = 1) {
   const d = await api(`/api/templates?${params}`);
   renderHomeTmplTable(d);
   renderPager('homeTmplPager', d.page, d.total_pages, loadHomeTmpl);
+  $('#homeTmplSearch').value = '';
+  $('#homeTmplAc').style.display = 'none';
 }
 
 // ==================== TEMPLATE DOWNLOAD ====================
@@ -714,12 +729,25 @@ function renderHomeTmplTable(d) {
     <tr data-id="${r.id}">
       <td>${escHtml(r.name)}</td><td>${escHtml(r.domain)}</td><td class="text-truncate" style="max-width:150px">${escHtml(r.notes)}</td>
       <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}</span>`).join('')}</td>
-      <td><button class="btn btn-sm btn-outline-success dl-tmpl-btn" title="下载模板文件" data-id="${r.id}"><i class="bi bi-download"></i></button></td>
+      <td>
+        <button class="btn btn-sm btn-outline-success dl-tmpl-btn" title="下载模板文件" data-id="${r.id}"><i class="bi bi-download"></i></button>
+        <button class="btn btn-sm btn-outline-danger del-home-tmpl" title="删除模板" data-id="${r.id}"><i class="bi bi-trash"></i></button>
+      </td>
     </tr>`).join('');
   tbody.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.dl-tmpl-btn')) return;
+      if (e.target.closest('.dl-tmpl-btn') || e.target.closest('.del-home-tmpl')) return;
       showTmplDetail(parseInt(row.dataset.id));
+    });
+  });
+  tbody.querySelectorAll('.del-home-tmpl').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showConfirm('确定删除该模板？', async () => {
+        await apiDelete(`/api/templates/${btn.dataset.id}`);
+        loadHomeTmpl(homeTmplPage);
+        toast('已删除', 'success');
+      });
     });
   });
   tbody.querySelectorAll('.dl-tmpl-btn').forEach(btn => {

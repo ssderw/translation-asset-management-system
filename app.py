@@ -15,6 +15,17 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
+# Custom JSON provider: serialize naive datetimes as ISO 8601 Beijing time
+from flask.json.provider import DefaultJSONProvider
+class BeijingJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, datetime):
+            if o.tzinfo is None:
+                o = o.replace(tzinfo=CST)
+            return o.isoformat()
+        return super().default(o)
+app.json = BeijingJSONProvider(app)
+
 ALLOWED_IMPORT_EXTS = {'csv', 'xlsx', 'xls'}
 ALLOWED_TEMPLATE_EXTS = {'txt', 'csv', 'xlsx', 'xls', 'docx', 'pdf', 'tmx', 'xml', 'json', 'html', 'md'}
 TEXT_TEMPLATE_EXTS = {'txt', 'csv', 'tmx', 'xml', 'json', 'html', 'md'}
