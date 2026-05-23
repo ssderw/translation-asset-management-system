@@ -28,3 +28,7 @@ upload/*
 # Environment
 .env
 *.env.local
+
+# Temporary
+.txt
+.claude/
