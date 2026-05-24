@@ -494,6 +494,16 @@ def log_mark_rolled_back(lid, rollback_of=None):
     execute("UPDATE operation_logs SET rollback_of = %s WHERE id = %s", (rollback_of, lid))
 
 
+def log_delete_old(days=3):
+    """Delete operation logs older than `days` days. Returns count of deleted rows."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM operation_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL %s DAY)", (days,))
+            deleted = cur.rowcount
+            conn.commit()
+            return deleted
+
+
 # ========== HISTORY ==========
 
 def expression_history(eid):

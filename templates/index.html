@@ -209,7 +209,10 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     <div class="tab-pane mt-3" id="tab-logs">
       <div class="card">
         <div class="card-body">
-          <h5 class="mb-3"><i class="bi bi-clock-history"></i> 操作日志</h5>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> 操作日志</h5>
+            <button class="btn btn-outline-danger btn-sm" id="clearOldLogsBtn"><i class="bi bi-trash"></i> 清空3天前的日志</button>
+          </div>
           <div class="table-responsive">
             <table class="table table-hover"><thead><tr><th>ID</th><th>时间</th><th>操作类型</th><th>对象类型</th><th>操作人</th><th>IP</th><th style="width:180px">操作</th></tr></thead><tbody id="logsBody"></tbody></table>
           </div>
@@ -1246,6 +1249,14 @@ $('#tagAddBtn').addEventListener('click', async () => {
 
 
 // ==================== LOGS PAGE ====================
+$('#clearOldLogsBtn').addEventListener('click', () => {
+  showConfirm('确定要清空3天前的所有操作日志吗？此操作不可逆！', async () => {
+    const d = await apiDelete('/api/logs/clear-old?days=3');
+    if (d.success) { toast(d.message, 'success'); loadLogsPage(); loadHomeLogs(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
+
 async function loadLogsPage(page = 1) {
   const d = await api(`/api/logs?page=${page}&per_page=15`);
   const tbody = $('#logsBody');

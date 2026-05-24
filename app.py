@@ -593,6 +593,14 @@ def log_list_route():
     return jsonify({'data': rows, 'total': total, 'page': page, 'per_page': per_page, 'total_pages': total_pages})
 
 
+@app.route('/api/logs/clear-old', methods=['DELETE'])
+@login_required
+def log_clear_old():
+    days = request.args.get('days', 3, type=int)
+    deleted = db.log_delete_old(days=days)
+    return jsonify({'success': True, 'deleted': deleted, 'message': f'已清空 {days} 天前的日志，共 {deleted} 条'})
+
+
 @app.route('/api/logs/recent', methods=['GET'])
 @login_required
 def log_recent():
