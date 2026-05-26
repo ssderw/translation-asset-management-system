@@ -27,7 +27,7 @@ class BeijingJSONProvider(DefaultJSONProvider):
 app.json = BeijingJSONProvider(app)
 
 ALLOWED_IMPORT_EXTS = {'csv', 'xlsx', 'xls'}
-ALLOWED_TEMPLATE_EXTS = {'txt', 'csv', 'xlsx', 'xls', 'docx', 'pdf', 'tmx', 'xml', 'json', 'html', 'md'}
+ALLOWED_TEMPLATE_EXTS = {'txt', 'csv', 'xlsx', 'xls', 'docx', 'pdf', 'tmx', 'xml', 'json', 'html', 'md', 'doc', 'ppt', 'pptx'}
 TEXT_TEMPLATE_EXTS = {'txt', 'csv', 'tmx', 'xml', 'json', 'html', 'md'}
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'upload')
 
