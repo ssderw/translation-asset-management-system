@@ -16,6 +16,17 @@ DB_CONFIG = {
 DB_NAME = 'translation_assets'
 
 
+def configure_db(host=None, port=None, user=None, password=None):
+    if host is not None:
+        DB_CONFIG['host'] = host
+    if port is not None:
+        DB_CONFIG['port'] = int(port)
+    if user is not None:
+        DB_CONFIG['user'] = user
+    if password is not None:
+        DB_CONFIG['password'] = password
+
+
 def init_db():
     conn = pymysql.connect(**{k: v for k, v in DB_CONFIG.items() if k != 'database'})
     try:
@@ -109,6 +120,32 @@ def init_db():
                     operator_ip VARCHAR(45) DEFAULT '',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     rollback_of INT DEFAULT NULL
+                ) ENGINE=InnoDB
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bilingual_corpus (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    chinese VARCHAR(2000) NOT NULL,
+                    other_lang VARCHAR(2000) NOT NULL,
+                    lang_code VARCHAR(10) NOT NULL DEFAULT 'en',
+                    source_type VARCHAR(20) DEFAULT 'sentence',
+                    source_file VARCHAR(500) DEFAULT '',
+                    review_status VARCHAR(20) DEFAULT 'pending',
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    updated_by VARCHAR(50) DEFAULT '',
+                    updated_ip VARCHAR(45) DEFAULT '',
+                    UNIQUE KEY uk_bilingual (chinese(255), other_lang(255), lang_code)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bilingual_corpus_tags (
+                    corpus_id INT NOT NULL,
+                    tag_id INT NOT NULL,
+                    PRIMARY KEY (corpus_id, tag_id),
+                    FOREIGN KEY (corpus_id) REFERENCES bilingual_corpus(id) ON DELETE CASCADE,
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             """)
             cur.execute("SELECT COUNT(*) FROM users")
@@ -338,6 +375,202 @@ def expression_autocomplete(q, tag_id=None, limit=8):
 
 def expression_copy_increment(eid):
     execute("UPDATE fixed_expressions SET usage_count = usage_count + 1 WHERE id = %s", (eid,))
+
+
+# ========== BILINGUAL CORPUS ==========
+
+def bilingual_list(search=None, tag_id=None, lang_code=None, review_status=None, page=1, per_page=10):
+    where = []
+    params = []
+    joins = ""
+
+    if tag_id:
+        joins = " JOIN bilingual_corpus_tags bct ON bc.id = bct.corpus_id"
+        where.append("bct.tag_id = %s")
+        params.append(tag_id)
+
+    if lang_code:
+        where.append("bc.lang_code = %s")
+        params.append(lang_code)
+
+    if review_status:
+        where.append("bc.review_status = %s")
+        params.append(review_status)
+
+    if search:
+        search_like = _transform_search(search)
+        where.append("(bc.chinese LIKE %s ESCAPE '\\\\' OR bc.other_lang LIKE %s ESCAPE '\\\\')")
+        params.extend([search_like, search_like])
+
+    where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+    count_sql = f"SELECT COUNT(DISTINCT bc.id) as cnt FROM bilingual_corpus bc{joins} {where_clause}"
+    total = query_one(count_sql, params)['cnt']
+
+    offset = (page - 1) * per_page
+    data_sql = f"""
+        SELECT DISTINCT bc.* FROM bilingual_corpus bc{joins}
+        {where_clause}
+        ORDER BY bc.updated_at DESC
+        LIMIT %s OFFSET %s
+    """
+    rows = query_all(data_sql, params + [per_page, offset])
+
+    for row in rows:
+        tags = query_all("""
+            SELECT t.id, t.name FROM tags t
+            JOIN bilingual_corpus_tags bct ON t.id = bct.tag_id
+            WHERE bct.corpus_id = %s ORDER BY t.id
+        """, (row['id'],))
+        row['tags'] = tags
+
+    return rows, total
+
+
+def bilingual_get(eid):
+    row = query_one("SELECT * FROM bilingual_corpus WHERE id = %s", (eid,))
+    if row:
+        row['tags'] = query_all("""
+            SELECT t.id, t.name FROM tags t
+            JOIN bilingual_corpus_tags bct ON t.id = bct.tag_id
+            WHERE bct.corpus_id = %s ORDER BY t.id
+        """, (eid,))
+    return row
+
+
+def bilingual_create(chinese, other_lang, lang_code='en', source_type='sentence', source_file='', notes='', tag_ids=None, operator='', ip=''):
+    existing = query_one(
+        "SELECT id FROM bilingual_corpus WHERE chinese = %s AND other_lang = %s AND lang_code = %s",
+        (chinese, other_lang, lang_code)
+    )
+    if existing:
+        return None
+
+    eid = execute(
+        "INSERT INTO bilingual_corpus (chinese, other_lang, lang_code, source_type, source_file, notes, updated_by, updated_ip) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        (chinese, other_lang, lang_code, source_type, source_file, notes, operator, ip)
+    )
+    if tag_ids:
+        for tid in tag_ids:
+            execute("INSERT IGNORE INTO bilingual_corpus_tags (corpus_id, tag_id) VALUES (%s,%s)", (eid, tid))
+    return eid
+
+
+def bilingual_update(eid, chinese, other_lang, lang_code='en', source_type='sentence', notes='', tag_ids=None, operator='', ip=''):
+    dup = query_one(
+        "SELECT id FROM bilingual_corpus WHERE chinese = %s AND other_lang = %s AND lang_code = %s AND id != %s",
+        (chinese, other_lang, lang_code, eid)
+    )
+    if dup:
+        return False
+
+    execute(
+        "UPDATE bilingual_corpus SET chinese=%s, other_lang=%s, lang_code=%s, source_type=%s, notes=%s, updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+        (chinese, other_lang, lang_code, source_type, notes, operator, ip, eid)
+    )
+    if tag_ids is not None:
+        execute("DELETE FROM bilingual_corpus_tags WHERE corpus_id = %s", (eid,))
+        for tid in tag_ids:
+            execute("INSERT IGNORE INTO bilingual_corpus_tags (corpus_id, tag_id) VALUES (%s,%s)", (eid, tid))
+    return True
+
+
+def bilingual_delete(eid):
+    execute("DELETE FROM bilingual_corpus WHERE id = %s", (eid,))
+
+
+def bilingual_autocomplete(q, tag_id=None, limit=8):
+    like = f"%{_escape_like(q)}%"
+    if tag_id:
+        sql = """
+            SELECT DISTINCT bc.id, bc.chinese, bc.other_lang, bc.lang_code FROM bilingual_corpus bc
+            JOIN bilingual_corpus_tags bct ON bc.id = bct.corpus_id
+            WHERE bct.tag_id = %s AND (bc.chinese LIKE %s ESCAPE '\\\\' OR bc.other_lang LIKE %s ESCAPE '\\\\')
+            ORDER BY LENGTH(bc.chinese) ASC LIMIT %s
+        """
+        return query_all(sql, (tag_id, like, like, limit))
+    else:
+        sql = """
+            SELECT bc.id, bc.chinese, bc.other_lang, bc.lang_code FROM bilingual_corpus bc
+            WHERE bc.chinese LIKE %s ESCAPE '\\\\' OR bc.other_lang LIKE %s ESCAPE '\\\\'
+            ORDER BY LENGTH(bc.chinese) ASC LIMIT %s
+        """
+        return query_all(sql, (like, like, limit))
+
+
+def bilingual_list_for_matcher(lang_code=None):
+    """Fetch ALL bilingual_corpus entries for glossary matching. No pagination.
+
+    Returns all entries including rejected ones, with their review_status field.
+    The caller is responsible for filtering based on review_status.
+    """
+    if lang_code:
+        rows = query_all(
+            "SELECT id, chinese, other_lang, lang_code, review_status FROM bilingual_corpus WHERE lang_code = %s",
+            (lang_code,)
+        )
+    else:
+        rows = query_all(
+            "SELECT id, chinese, other_lang, lang_code, review_status FROM bilingual_corpus"
+        )
+    return rows
+
+
+def bilingual_approve(eid, operator='', ip=''):
+    """Approve: move from bilingual_corpus to fixed_expressions, then delete from corpus."""
+    bc = bilingual_get(eid)
+    if not bc:
+        return None
+    tag_ids = [t['id'] for t in (bc.get('tags') or [])]
+    new_eid = expression_create(
+        bc['chinese'], bc['other_lang'],
+        domain='', notes=bc.get('notes', ''),
+        tag_ids=tag_ids, operator=operator, ip=ip
+    )
+    if new_eid:
+        bilingual_delete(eid)
+        log_create('approve', 'bilingual_corpus', eid, {
+            'expression_id': new_eid,
+            'chinese': bc['chinese'],
+            'other_lang': bc['other_lang'],
+            'lang_code': bc['lang_code'],
+            'source_type': bc.get('source_type', ''),
+            'source_file': bc.get('source_file', ''),
+            'notes': bc.get('notes', ''),
+            'tags': tag_ids,
+        }, operator, ip)
+    return new_eid
+
+
+def bilingual_reject(eid, operator='', ip=''):
+    """Reject: set review_status to 'rejected'."""
+    execute(
+        "UPDATE bilingual_corpus SET review_status='rejected', updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+        (operator, ip, eid)
+    )
+    bc = bilingual_get(eid)
+    if bc:
+        log_create('reject', 'bilingual_corpus', eid, {
+            'chinese': bc['chinese'],
+            'other_lang': bc['other_lang'],
+            'lang_code': bc['lang_code'],
+        }, operator, ip)
+    return True
+
+
+def bilingual_restore(eid, operator='', ip=''):
+    """Restore a rejected entry back to 'pending' status."""
+    execute(
+        "UPDATE bilingual_corpus SET review_status='pending', updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+        (operator, ip, eid)
+    )
+    bc = bilingual_get(eid)
+    if bc:
+        log_create('restore', 'bilingual_corpus', eid, {
+            'chinese': bc['chinese'],
+            'other_lang': bc['other_lang'],
+            'lang_code': bc['lang_code'],
+        }, operator, ip)
+    return True
 
 
 # ========== TEMPLATES ==========

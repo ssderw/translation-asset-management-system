@@ -84,6 +84,7 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     <ul class="nav nav-tabs" id="mainTabs">
       <li class="nav-item"><a class="nav-link active" data-tab="tab-home" href="#"><i class="bi bi-house"></i> 首页</a></li>
       <li class="nav-item"><a class="nav-link" data-tab="tab-expr-manage" href="#"><i class="bi bi-journal-text"></i> 固定表达管理</a></li>
+      <li class="nav-item"><a class="nav-link" data-tab="tab-bilingual" href="#"><i class="bi bi-book"></i> 双语语料管理</a></li>
       <li class="nav-item"><a class="nav-link" data-tab="tab-tmpl-manage" href="#"><i class="bi bi-file-earmark"></i> 模板管理</a></li>
       <li class="nav-item"><a class="nav-link" data-tab="tab-tags" href="#"><i class="bi bi-tags"></i> 全局标签管理</a></li>
       <li class="nav-item"><a class="nav-link" data-tab="tab-logs" href="#"><i class="bi bi-clock-history"></i> 日志记录</a></li>
@@ -163,6 +164,43 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
             <table class="table table-hover"><thead><tr><th>ID</th><th>中文</th><th>英文</th><th>领域</th><th>标签</th><th>使用频率</th><th style="width:120px">操作</th></tr></thead><tbody id="exprManageBody"></tbody></table>
           </div>
           <div class="d-flex justify-content-between align-items-center" id="exprManagePager"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BILINGUAL CORPUS TAB ===== -->
+    <div class="tab-pane mt-3" id="tab-bilingual">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-3">
+            <h5 class="mb-0"><i class="bi bi-book"></i> 双语语料管理</h5>
+            <div>
+              <select class="form-select form-select-sm d-inline-block" id="bilingualLangFilter" style="width:120px">
+                <option value="">全部语言</option>
+                <option value="en">英文 (en)</option>
+                <option value="ja">日文 (ja)</option>
+                <option value="ko">韩文 (ko)</option>
+                <option value="fr">法文 (fr)</option>
+                <option value="de">德文 (de)</option>
+              </select>
+              <select class="form-select form-select-sm d-inline-block" id="bilingualStatusFilter" style="width:130px">
+                <option value="">全部状态</option>
+                <option value="pending">待审核</option>
+                <option value="rejected">已拒绝</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="bilingualAddBtn"><i class="bi bi-plus-lg"></i> 手动添加</button>
+            </div>
+          </div>
+          <div class="filter-row mb-2">
+            <div class="search-wrapper">
+              <input class="form-control" id="bilingualSearch" placeholder="输入中文或译文关键词搜索（支持 * 通配符）" autocomplete="off">
+              <div class="autocomplete-dropdown" id="bilingualAc"></div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover"><thead><tr><th>ID</th><th>中文</th><th>译文</th><th>语言</th><th>来源</th><th>状态</th><th>标签</th><th style="width:200px">操作</th></tr></thead><tbody id="bilingualManageBody"></tbody></table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center" id="bilingualManagePager"></div>
         </div>
       </div>
     </div>
@@ -358,6 +396,75 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   </div></div>
 </div>
 
+<!-- Add Bilingual Corpus Modal -->
+<div class="modal fade" id="bilingualAddModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">添加双语语料</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-2"><label class="form-label">中文 <span class="text-danger">*</span></label><textarea class="form-control" id="addBilingualChinese" rows="2"></textarea></div>
+      <div class="mb-2"><label class="form-label">译文 <span class="text-danger">*</span></label><textarea class="form-control" id="addBilingualOther" rows="2"></textarea></div>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label">语言代码</label>
+          <select class="form-select" id="addBilingualLang">
+            <option value="en">英文 (en)</option><option value="ja">日文 (ja)</option><option value="ko">韩文 (ko)</option><option value="fr">法文 (fr)</option><option value="de">德文 (de)</option>
+          </select>
+        </div>
+        <div class="col-6"><label class="form-label">来源类型</label>
+          <select class="form-select" id="addBilingualSourceType">
+            <option value="sentence">句子</option><option value="table_cell">表格单元格</option><option value="phrase">短语</option>
+          </select>
+        </div>
+      </div>
+      <div class="mb-2"><label class="form-label">来源文件</label><input class="form-control" id="addBilingualSourceFile" placeholder="可选"></div>
+      <div class="mb-2"><label class="form-label">备注</label><textarea class="form-control" id="addBilingualNotes" rows="2"></textarea></div>
+      <div class="mb-2"><label class="form-label">标签</label>
+        <div class="d-flex flex-wrap gap-1 mb-1" id="addBilingualTagsContainer"></div>
+        <select class="form-select form-select-sm" id="addBilingualTagSelect" style="width:auto"><option value="">+ 添加标签</option></select>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-primary" id="addBilingualSaveBtn">保存</button></div>
+  </div></div>
+</div>
+
+<!-- Bilingual Corpus Detail Modal -->
+<div class="modal fade" id="bilingualDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg-custom"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">语料详情</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label">中文 <span class="text-danger">*</span></label><textarea class="form-control" id="bdtChinese" rows="2"></textarea></div>
+        <div class="col-6"><label class="form-label">译文 <span class="text-danger">*</span></label><textarea class="form-control" id="bdtOther" rows="2"></textarea></div>
+        <div class="col-4"><label class="form-label">语言代码</label>
+          <select class="form-select" id="bdtLang">
+            <option value="en">en</option><option value="ja">ja</option><option value="ko">ko</option><option value="fr">fr</option><option value="de">de</option>
+          </select>
+        </div>
+        <div class="col-4"><label class="form-label">来源类型</label>
+          <select class="form-select" id="bdtSourceType">
+            <option value="sentence">句子</option><option value="table_cell">表格单元格</option><option value="phrase">短语</option>
+          </select>
+        </div>
+        <div class="col-4"><label class="form-label">状态</label><input class="form-control" id="bdtStatus" readonly></div>
+      </div>
+      <div class="mt-2"><label class="form-label">来源文件</label><input class="form-control" id="bdtSourceFile"></div>
+      <div class="mt-2"><label class="form-label">备注</label><textarea class="form-control" id="bdtNotes" rows="2"></textarea></div>
+      <div class="mt-2"><label class="form-label">标签</label>
+        <div class="d-flex flex-wrap align-items-center gap-1 mb-1" id="bdtTagsContainer"></div>
+        <select class="form-select form-select-sm" id="bdtTagSelect" style="width:auto"><option value="">+ 添加标签</option></select>
+      </div>
+      <div class="mt-2" id="bdtInfo"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-success" id="bdtApproveBtn"><i class="bi bi-check-lg"></i> 批准并转为固定表达</button>
+      <button class="btn btn-warning" id="bdtRejectBtn"><i class="bi bi-x-lg"></i> 拒绝</button>
+      <button class="btn btn-outline-success d-none" id="bdtRestoreBtn"><i class="bi bi-arrow-counterclockwise"></i> 恢复到待审核</button>
+      <button class="btn btn-danger" id="bdtDeleteBtn"><i class="bi bi-trash"></i> 删除</button>
+      <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      <button class="btn btn-primary" id="bdtSaveBtn">保存修改</button>
+    </div>
+  </div></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ==================== UTILS ====================
@@ -389,9 +496,9 @@ function debounce(fn, ms = 300) {
   debounceTimer = setTimeout(fn, ms);
 }
 
-const LOG_ACTION_MAP = { 'add': '新增', 'edit': '编辑', 'delete': '删除', 'rollback': '回撤', 'batch_add': '批量导入' };
-const LOG_TARGET_MAP = { 'expression': '词条', 'template': '模板', 'tag': '标签', 'user': '用户' };
-const LOG_ACTION_COLOR = { 'add': 'success', 'edit': 'warning', 'delete': 'danger', 'rollback': 'info', 'batch_add': 'primary' };
+const LOG_ACTION_MAP = { 'add': '新增', 'edit': '编辑', 'delete': '删除', 'rollback': '回撤', 'batch_add': '批量导入', 'approve': '批准入库', 'reject': '拒绝', 'restore': '恢复' };
+const LOG_TARGET_MAP = { 'expression': '词条', 'template': '模板', 'tag': '标签', 'user': '用户', 'bilingual_corpus': '双语语料' };
+const LOG_ACTION_COLOR = { 'add': 'success', 'edit': 'warning', 'delete': 'danger', 'rollback': 'info', 'batch_add': 'primary', 'approve': 'success', 'reject': 'warning', 'restore': 'success' };
 
 function formatLogSummary(l) {
   const action = LOG_ACTION_MAP[l.action_type] || l.action_type;
@@ -412,6 +519,8 @@ function formatLogSummary(l) {
       detailText = `「${details.name || ''}」`;
     } else if (l.target_type === 'user') {
       detailText = `「${details.username || ''}」`;
+    } else if (l.target_type === 'bilingual_corpus') {
+      detailText = `「${details.chinese || ''}」→「${details.other_lang || ''}」[${details.lang_code || ''}]`;
     }
   } else if (l.action_type === 'edit') {
     if (l.target_type === 'expression') {
@@ -428,11 +537,28 @@ function formatLogSummary(l) {
       detailText = `「${b.name || ''}」→「${a.name || ''}」`;
     } else if (l.target_type === 'tag') {
       detailText = `「${details.before || ''}」→「${details.after || ''}」`;
+    } else if (l.target_type === 'bilingual_corpus') {
+      const b = details.before || {};
+      const a = details.after || {};
+      const parts = [];
+      if (b.chinese !== a.chinese) parts.push(`中文：${b.chinese || '空'} → ${a.chinese || '空'}`);
+      if (b.other_lang !== a.other_lang) parts.push(`译文：${b.other_lang || '空'} → ${a.other_lang || '空'}`);
+      detailText = parts.length ? parts.join('；') : '未做实质性修改';
     }
   } else if (l.action_type === 'batch_add') {
-    detailText = `共导入 ${details.imported || 0} 条，跳过重复 ${details.skipped || 0} 条`;
+    if (l.target_type === 'bilingual_corpus') {
+      detailText = `共导入 ${details.imported || 0} 条语料，跳过重复 ${details.skipped || 0} 条`;
+    } else {
+      detailText = `共导入 ${details.imported || 0} 条，跳过重复 ${details.skipped || 0} 条`;
+    }
   } else if (l.action_type === 'rollback') {
     detailText = `回撤了日志 #${details.rolled_back_log_id || ''}`;
+  } else if (l.action_type === 'approve') {
+    detailText = `「${details.chinese || ''}」→「${details.other_lang || ''}」→ 固定表达 #${details.expression_id || ''}`;
+  } else if (l.action_type === 'reject') {
+    detailText = `「${details.chinese || ''}」→「${details.other_lang || ''}」`;
+  } else if (l.action_type === 'restore') {
+    detailText = `「${details.chinese || ''}」→「${details.other_lang || ''}」→ 待审核`;
   }
   return `${action}${target} ${detailText}`;
 }
@@ -581,6 +707,7 @@ $('#mainTabs').addEventListener('click', (e) => {
     $$('.tab-pane').forEach(p => p.classList.remove('active'));
     $(`#${e.target.dataset.tab}`).classList.add('active');
     if (e.target.dataset.tab === 'tab-expr-manage') loadExprManage();
+    if (e.target.dataset.tab === 'tab-bilingual') loadBilingualManage();
     if (e.target.dataset.tab === 'tab-tmpl-manage') loadTmplManage();
     if (e.target.dataset.tab === 'tab-tags') loadTagManage();
     if (e.target.dataset.tab === 'tab-logs') loadLogsPage();
@@ -998,6 +1125,217 @@ $('#exprImportFile').addEventListener('change', async () => {
 });
 
 
+// ==================== BILINGUAL CORPUS MANAGE ====================
+const LANG_MAP = { en: '英文', ja: '日文', ko: '韩文', fr: '法文', de: '德文' };
+const SOURCE_MAP = { sentence: '句子', table_cell: '表格单元格', phrase: '短语' };
+
+let bilingualManagePage = 1;
+let bilingualAddTags = [];
+let bilingualDetailTags = [];
+let bilingualDetailId = null;
+
+async function loadBilingualManage(page = 1) {
+  bilingualManagePage = page;
+  const langCode = $('#bilingualLangFilter')?.value || '';
+  const reviewStatus = $('#bilingualStatusFilter')?.value || '';
+  const search = ($('#bilingualSearch')?.value || '').trim();
+  const params = new URLSearchParams({ page, per_page: 10 });
+  if (langCode) params.set('lang_code', langCode);
+  if (reviewStatus) params.set('review_status', reviewStatus);
+  if (search) params.set('search', search);
+  const d = await api(`/api/bilingual?${params}`);
+  const tbody = $('#bilingualManageBody');
+  if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">暂无语料条目</td></tr>'; $('#bilingualManagePager').innerHTML = ''; return; }
+  tbody.innerHTML = d.data.map(r => {
+    const statusMap = { pending: '<span class="badge bg-warning text-dark">待审核</span>', rejected: '<span class="badge bg-secondary">已拒绝</span>' };
+    const statusBadge = statusMap[r.review_status] || r.review_status;
+    const actionBtns = r.review_status === 'pending'
+      ? `<button class="btn btn-sm btn-success approve-bc" data-id="${r.id}" title="批准"><i class="bi bi-check-lg"></i></button>
+         <button class="btn btn-sm btn-warning reject-bc" data-id="${r.id}" title="拒绝"><i class="bi bi-x-lg"></i></button>
+         <button class="btn btn-sm btn-outline-primary edit-bc" data-id="${r.id}">编辑</button>`
+      : r.review_status === 'rejected'
+      ? `<button class="btn btn-sm btn-outline-success restore-bc" data-id="${r.id}" title="恢复到待审核"><i class="bi bi-arrow-counterclockwise"></i> 恢复</button>
+         <button class="btn btn-sm btn-outline-primary edit-bc" data-id="${r.id}">编辑</button>`
+      : `<button class="btn btn-sm btn-outline-primary edit-bc" data-id="${r.id}">编辑</button>`;
+    return `<tr>
+      <td>${r.id}</td><td>${escHtml(r.chinese)}</td><td>${escHtml(r.other_lang)}</td>
+      <td>${LANG_MAP[r.lang_code] || r.lang_code}</td><td>${SOURCE_MAP[r.source_type] || r.source_type}</td><td>${statusBadge}</td>
+      <td>${(r.tags||[]).map(t => `<span class="tag-badge">${escHtml(t.name)}</span>`).join('')}</td>
+      <td>${actionBtns}</td>
+    </tr>`;
+  }).join('');
+  tbody.querySelectorAll('.approve-bc').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); approveBilingual(parseInt(btn.dataset.id)); });
+  });
+  tbody.querySelectorAll('.reject-bc').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); rejectBilingual(parseInt(btn.dataset.id)); });
+  });
+  tbody.querySelectorAll('.restore-bc').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); restoreBilingual(parseInt(btn.dataset.id)); });
+  });
+  tbody.querySelectorAll('.edit-bc').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); showBilingualDetail(parseInt(btn.dataset.id)); });
+  });
+  renderPager('bilingualManagePager', d.page, d.total_pages, loadBilingualManage);
+}
+
+// Filter change handlers
+$('#bilingualLangFilter').addEventListener('change', () => loadBilingualManage());
+$('#bilingualStatusFilter').addEventListener('change', () => loadBilingualManage());
+$('#bilingualSearch').addEventListener('input', () => debounce(loadBilingualManage, 300));
+
+// Add bilingual modal
+$('#bilingualAddBtn').addEventListener('click', () => {
+  $('#addBilingualChinese').value = ''; $('#addBilingualOther').value = ''; $('#addBilingualSourceFile').value = ''; $('#addBilingualNotes').value = '';
+  $('#addBilingualLang').value = 'en'; $('#addBilingualSourceType').value = 'sentence';
+  bilingualAddTags = [];
+  renderTagBadges([], 'addBilingualTagsContainer');
+  populateTagSelect('#addBilingualTagSelect', []);
+  new bootstrap.Modal('#bilingualAddModal').show();
+});
+
+$('#addBilingualTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#addBilingualTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !bilingualAddTags.find(t => t.id === tid)) {
+    bilingualAddTags.push(tag);
+    renderTagBadges(bilingualAddTags, 'addBilingualTagsContainer', true, makeTagRemover(bilingualAddTags, 'addBilingualTagsContainer', '#addBilingualTagSelect'));
+    populateTagSelect('#addBilingualTagSelect', bilingualAddTags.map(t => t.id));
+  }
+  $('#addBilingualTagSelect').value = '';
+});
+
+$('#addBilingualSaveBtn').addEventListener('click', async () => {
+  const data = {
+    chinese: $('#addBilingualChinese').value.trim(),
+    other_lang: $('#addBilingualOther').value.trim(),
+    lang_code: $('#addBilingualLang').value,
+    source_type: $('#addBilingualSourceType').value,
+    source_file: $('#addBilingualSourceFile').value.trim(),
+    notes: $('#addBilingualNotes').value.trim(),
+    tag_ids: bilingualAddTags.map(t => t.id)
+  };
+  if (!data.chinese || !data.other_lang) { toast('中文和译文为必填项', 'warning'); return; }
+  const d = await apiPost('/api/bilingual', data);
+  if (d.success) { toast('添加成功', 'success'); bootstrap.Modal.getInstance('#bilingualAddModal').hide(); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
+});
+
+// Bilingual detail modal
+async function showBilingualDetail(eid) {
+  const d = await api(`/api/bilingual/${eid}`);
+  if (!d.data) { toast('语料条目不存在', 'danger'); return; }
+  bilingualDetailId = eid;
+  const r = d.data;
+  $('#bdtChinese').value = r.chinese;
+  $('#bdtOther').value = r.other_lang;
+  $('#bdtLang').value = r.lang_code;
+  $('#bdtSourceType').value = r.source_type;
+  $('#bdtSourceFile').value = r.source_file || '';
+  $('#bdtStatus').value = r.review_status === 'pending' ? '待审核' : r.review_status === 'approved' ? '已通过' : r.review_status === 'rejected' ? '已拒绝' : r.review_status;
+  $('#bdtNotes').value = r.notes || '';
+  bilingualDetailTags = (r.tags || []).map(t => ({ id: t.id, name: t.name }));
+  renderTagBadges(bilingualDetailTags, 'bdtTagsContainer', true, makeTagRemover(bilingualDetailTags, 'bdtTagsContainer', '#bdtTagSelect'));
+  populateTagSelect('#bdtTagSelect', bilingualDetailTags.map(t => t.id));
+  const info = `ID: ${r.id} | 创建: ${r.created_at || '-'} | 更新: ${r.updated_at || '-'}`;
+  $('#bdtInfo').innerHTML = `<small class="text-muted">${info}</small>`;
+
+  // Show/hide approve/reject/restore buttons based on status
+  const isPending = r.review_status === 'pending';
+  const isRejected = r.review_status === 'rejected';
+  $('#bdtApproveBtn').style.display = isPending ? '' : 'none';
+  $('#bdtRejectBtn').style.display = isPending ? '' : 'none';
+  $('#bdtRestoreBtn').style.display = isRejected ? '' : 'none';
+  new bootstrap.Modal('#bilingualDetailModal').show();
+}
+
+$('#bdtTagSelect').addEventListener('change', () => {
+  const tid = parseInt($('#bdtTagSelect').value);
+  if (!tid) return;
+  const tag = globalTags.find(t => t.id === tid);
+  if (tag && !bilingualDetailTags.find(t => t.id === tid)) {
+    bilingualDetailTags.push(tag);
+    renderTagBadges(bilingualDetailTags, 'bdtTagsContainer', true, makeTagRemover(bilingualDetailTags, 'bdtTagsContainer', '#bdtTagSelect'));
+    populateTagSelect('#bdtTagSelect', bilingualDetailTags.map(t => t.id));
+  }
+  $('#bdtTagSelect').value = '';
+});
+
+$('#bdtSaveBtn').addEventListener('click', async () => {
+  const data = {
+    chinese: $('#bdtChinese').value.trim(),
+    other_lang: $('#bdtOther').value.trim(),
+    lang_code: $('#bdtLang').value,
+    source_type: $('#bdtSourceType').value,
+    source_file: $('#bdtSourceFile').value.trim(),
+    notes: $('#bdtNotes').value.trim(),
+    tag_ids: bilingualDetailTags.map(t => t.id)
+  };
+  if (!data.chinese || !data.other_lang) { toast('中文和译文为必填项', 'warning'); return; }
+  const d = await apiPut(`/api/bilingual/${bilingualDetailId}`, data);
+  if (d.success) { toast('保存成功', 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
+});
+
+$('#bdtDeleteBtn').addEventListener('click', () => {
+  showConfirm('确定删除该语料条目？', async () => {
+    await apiDelete(`/api/bilingual/${bilingualDetailId}`);
+    toast('已删除', 'success');
+    bootstrap.Modal.getInstance('#bilingualDetailModal').hide();
+    loadBilingualManage();
+  });
+});
+
+$('#bdtApproveBtn').addEventListener('click', () => {
+  showConfirm('确定批准该语料条目并转为固定表达？<br>此操作将把该条目转移到固定表达表中，并从语料表中删除。', async () => {
+    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/approve`);
+    if (d.success) { toast(`已批准！新词条ID: ${d.expression_id}`, 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
+
+$('#bdtRejectBtn').addEventListener('click', () => {
+  showConfirm('确定拒绝该语料条目？<br>状态将变为"已拒绝"', async () => {
+    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/reject`);
+    if (d.success) { toast('已拒绝', 'warning'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
+
+$('#bdtRestoreBtn').addEventListener('click', () => {
+  showConfirm('确定恢复该条目到待审核状态吗？', async () => {
+    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/restore`);
+    if (d.success) { toast(d.message, 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
+
+async function approveBilingual(eid) {
+  showConfirm('确定批准该语料条目并转为固定表达？', async () => {
+    const d = await apiPost(`/api/bilingual/${eid}/approve`);
+    if (d.success) { toast(`已批准！新词条ID: ${d.expression_id}`, 'success'); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+}
+
+async function rejectBilingual(eid) {
+  showConfirm('确定拒绝该语料条目？', async () => {
+    const d = await apiPost(`/api/bilingual/${eid}/reject`);
+    if (d.success) { toast('已拒绝', 'warning'); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+}
+
+async function restoreBilingual(eid) {
+  showConfirm('确定要恢复该条目到待审核状态吗？', async () => {
+    const d = await apiPost(`/api/bilingual/${eid}/restore`);
+    if (d.success) { toast(d.message, 'success'); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+}
+
+
 // ==================== TEMPLATE MANAGE ====================
 let tmplManagePage = 1;
 let atmplTags = [];
@@ -1263,7 +1601,7 @@ async function loadLogsPage(page = 1) {
   if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无日志</td></tr>'; $('#logsPager').innerHTML = ''; return; }
   tbody.innerHTML = d.data.map(l => {
     const isRolledBack = l.rollback_of !== null;
-    const canRollback = !isRolledBack && (l.action_type === 'add' || l.action_type === 'edit' || l.action_type === 'delete');
+    const canRollback = !isRolledBack && (l.action_type === 'add' || l.action_type === 'edit' || l.action_type === 'delete' || l.action_type === 'approve' || l.action_type === 'reject' || l.action_type === 'restore');
     const actionName = LOG_ACTION_MAP[l.action_type] || l.action_type;
     const targetName = LOG_TARGET_MAP[l.target_type] || l.target_type;
     return `<tr>

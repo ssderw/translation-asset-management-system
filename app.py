@@ -1,8 +1,10 @@
 import os
+import sys
 import json
 import uuid
 import csv
 import io
+import getpass
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 from flask import Flask, request, jsonify, session, send_file, render_template
@@ -11,7 +13,14 @@ CST = timezone(timedelta(hours=8))
 
 import db
 
-app = Flask(__name__)
+if getattr(sys, 'frozen', False):
+    DATA_DIR = os.path.dirname(sys.executable)
+    TEMPLATE_DIR = os.path.join(sys._MEIPASS, 'templates')
+else:
+    DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+    TEMPLATE_DIR = 'templates'
+
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
@@ -29,7 +38,7 @@ app.json = BeijingJSONProvider(app)
 ALLOWED_IMPORT_EXTS = {'csv', 'xlsx', 'xls'}
 ALLOWED_TEMPLATE_EXTS = {'txt', 'csv', 'xlsx', 'xls', 'docx', 'pdf', 'tmx', 'xml', 'json', 'html', 'md', 'doc', 'ppt', 'pptx'}
 TEXT_TEMPLATE_EXTS = {'txt', 'csv', 'tmx', 'xml', 'json', 'html', 'md'}
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'upload')
+UPLOAD_FOLDER = os.path.join(DATA_DIR, 'upload')
 
 MIME_MAP = {
     'txt': 'text/plain; charset=utf-8',
@@ -303,6 +312,216 @@ def expression_copy(eid):
     return jsonify({'success': True})
 
 
+# ==================== BILINGUAL CORPUS ====================
+
+@app.route('/api/bilingual', methods=['GET'])
+@login_required
+def bilingual_list():
+    search = request.args.get('search', '').strip()
+    tag_id = request.args.get('tag_id', type=int)
+    lang_code = request.args.get('lang_code', '').strip() or None
+    review_status = request.args.get('review_status', '').strip() or None
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+
+    rows, total = db.bilingual_list(search=search, tag_id=tag_id, lang_code=lang_code, review_status=review_status, page=page, per_page=per_page)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    return jsonify({
+        'data': rows,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': total_pages
+    })
+
+
+@app.route('/api/bilingual/autocomplete', methods=['GET'])
+@login_required
+def bilingual_autocomplete():
+    q = request.args.get('q', '').strip()
+    tag_id = request.args.get('tag_id', type=int)
+    if not q and not tag_id:
+        return jsonify({'suggestions': []})
+
+    if not q and tag_id:
+        rows, _ = db.bilingual_list(tag_id=tag_id, page=1, per_page=8)
+        suggestions = [{'id': r['id'], 'chinese': r['chinese'], 'other_lang': r['other_lang'], 'lang_code': r['lang_code']} for r in rows]
+    else:
+        suggestions = db.bilingual_autocomplete(q, tag_id=tag_id)
+
+    return jsonify({'suggestions': suggestions})
+
+
+@app.route('/api/bilingual/<int:eid>', methods=['GET'])
+@login_required
+def bilingual_get(eid):
+    row = db.bilingual_get(eid)
+    if not row:
+        return jsonify({'success': False, 'message': '语料条目不存在'}), 404
+    return jsonify({'data': row})
+
+
+@app.route('/api/bilingual', methods=['POST'])
+@login_required
+def bilingual_create():
+    data = request.get_json(force=True)
+    chinese = (data.get('chinese') or '').strip()
+    other_lang = (data.get('other_lang') or '').strip()
+    if not chinese or not other_lang:
+        return jsonify({'success': False, 'message': '中文和译文为必填项'}), 400
+
+    lang_code = (data.get('lang_code') or 'en').strip()
+    source_type = (data.get('source_type') or 'sentence').strip()
+    source_file = (data.get('source_file') or '').strip()
+    notes = (data.get('notes') or '').strip()
+    tag_ids = data.get('tag_ids', [])
+
+    eid = db.bilingual_create(chinese, other_lang, lang_code, source_type, source_file, notes, tag_ids, get_operator(), get_ip())
+    if eid is None:
+        return jsonify({'success': False, 'message': '语料条目已存在（中文和译文完全相同）'}), 409
+
+    details = {'chinese': chinese, 'other_lang': other_lang, 'lang_code': lang_code, 'source_type': source_type, 'source_file': source_file, 'notes': notes, 'tag_ids': tag_ids}
+    db.log_create('add', 'bilingual_corpus', eid, details, get_operator(), get_ip())
+    return jsonify({'success': True, 'id': eid})
+
+
+@app.route('/api/bilingual/<int:eid>', methods=['PUT'])
+@login_required
+def bilingual_update(eid):
+    old = db.bilingual_get(eid)
+    if not old:
+        return jsonify({'success': False, 'message': '语料条目不存在'}), 404
+
+    data = request.get_json(force=True)
+    chinese = (data.get('chinese') or '').strip()
+    other_lang = (data.get('other_lang') or '').strip()
+    if not chinese or not other_lang:
+        return jsonify({'success': False, 'message': '中文和译文为必填项'}), 400
+
+    lang_code = (data.get('lang_code') or old.get('lang_code', 'en')).strip()
+    source_type = (data.get('source_type') or old.get('source_type', 'sentence')).strip()
+    notes = (data.get('notes') or '').strip()
+    tag_ids = data.get('tag_ids', None)
+
+    old_tags = [t['id'] for t in old['tags']]
+    details_before = {'chinese': old['chinese'], 'other_lang': old['other_lang'], 'lang_code': old['lang_code'],
+                      'source_type': old['source_type'], 'notes': old['notes'], 'tags': old_tags}
+
+    ok = db.bilingual_update(eid, chinese, other_lang, lang_code, source_type, notes, tag_ids, get_operator(), get_ip())
+    if not ok:
+        return jsonify({'success': False, 'message': '语料条目已存在（中文和译文完全相同）'}), 409
+
+    details_after = {'chinese': chinese, 'other_lang': other_lang, 'lang_code': lang_code, 'source_type': source_type, 'notes': notes, 'tag_ids': tag_ids}
+    details = {'before': details_before, 'after': details_after}
+    db.log_create('edit', 'bilingual_corpus', eid, details, get_operator(), get_ip())
+    return jsonify({'success': True})
+
+
+@app.route('/api/bilingual/<int:eid>', methods=['DELETE'])
+@login_required
+def bilingual_delete(eid):
+    old = db.bilingual_get(eid)
+    if not old:
+        return jsonify({'success': False, 'message': '语料条目不存在'}), 404
+
+    details = {
+        'chinese': old['chinese'], 'other_lang': old['other_lang'], 'lang_code': old['lang_code'],
+        'source_type': old['source_type'], 'notes': old['notes'], 'tags': [t['id'] for t in old['tags']]
+    }
+    db.bilingual_delete(eid)
+    db.log_create('delete', 'bilingual_corpus', eid, details, get_operator(), get_ip())
+    return jsonify({'success': True})
+
+
+@app.route('/api/bilingual/<int:eid>/approve', methods=['POST'])
+@login_required
+def bilingual_approve(eid):
+    new_eid = db.bilingual_approve(eid, get_operator(), get_ip())
+    if new_eid is None:
+        return jsonify({'success': False, 'message': '语料条目不存在或已被处理'}), 404
+    return jsonify({'success': True, 'expression_id': new_eid, 'message': '已批准并转为固定表达'})
+
+
+@app.route('/api/bilingual/<int:eid>/reject', methods=['POST'])
+@login_required
+def bilingual_reject(eid):
+    old = db.bilingual_get(eid)
+    if not old:
+        return jsonify({'success': False, 'message': '语料条目不存在'}), 404
+    db.bilingual_reject(eid, get_operator(), get_ip())
+    return jsonify({'success': True, 'message': '已拒绝'})
+
+
+@app.route('/api/bilingual/<int:eid>/restore', methods=['POST'])
+@login_required
+def bilingual_restore(eid):
+    old = db.bilingual_get(eid)
+    if not old:
+        return jsonify({'success': False, 'message': '语料条目不存在'}), 404
+    if old.get('review_status') != 'rejected':
+        return jsonify({'success': False, 'message': '仅可恢复已拒绝的条目'}), 400
+    db.bilingual_restore(eid, get_operator(), get_ip())
+    return jsonify({'success': True, 'message': '已恢复到待审核状态'})
+
+
+@app.route('/api/bilingual/batch-import', methods=['POST'])
+@login_required
+def bilingual_batch_import():
+    data = request.get_json(force=True)
+    entries = data.get('entries', [])
+    lang_code = data.get('lang_code', 'en')
+
+    if not entries:
+        return jsonify({'success': False, 'message': '没有要导入的数据'}), 400
+
+    imported = 0
+    skipped = 0
+    errors = []
+    imported_ids = []
+
+    for i, entry in enumerate(entries):
+        chinese = (entry.get('chinese') or entry.get('source') or '').strip()
+        other_lang = (entry.get('other_lang') or entry.get('target') or '').strip()
+        if not chinese or not other_lang:
+            errors.append({'row': i + 1, 'message': '缺少中文或译文'})
+            continue
+
+        source_type = (entry.get('source_type') or 'sentence').strip()
+        source_file = (entry.get('source_file') or '').strip()
+        notes = (entry.get('notes') or '').strip()
+        entry_lang = (entry.get('lang_code') or lang_code).strip()
+        tag_ids = entry.get('tag_ids', [])
+
+        eid = db.bilingual_create(chinese, other_lang, entry_lang, source_type, source_file, notes, tag_ids, get_operator(), get_ip())
+        if eid is None:
+            skipped += 1
+        else:
+            imported += 1
+            imported_ids.append(eid)
+
+    if imported_ids:
+        db.log_create('batch_add', 'bilingual_corpus', None,
+                      {'imported': imported, 'skipped': skipped, 'errors': len(errors), 'ids': imported_ids},
+                      get_operator(), get_ip())
+
+    return jsonify({
+        'success': True,
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors
+    })
+
+
+@app.route('/api/bilingual/matcher', methods=['GET'])
+@login_required
+def bilingual_matcher():
+    """Returns ALL bilingual_corpus entries for glossary matching by docutranslate."""
+    lang_code = request.args.get('lang_code', '').strip() or None
+    rows = db.bilingual_list_for_matcher(lang_code=lang_code)
+    return jsonify({'data': rows})
+
+
 # ==================== TEMPLATES ====================
 
 @app.route('/api/templates', methods=['GET'])
@@ -390,7 +609,7 @@ def template_create():
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         safe_name = f"{tid}_{uuid.uuid4().hex[:8]}.{ext}"
         file_path = os.path.join('upload', safe_name)
-        abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
+        abs_path = os.path.join(DATA_DIR, file_path)
         with open(abs_path, 'wb') as f:
             f.write(file_data)
         db.template_update_path(tid, file_path, content)
@@ -436,13 +655,13 @@ def template_update(tid):
             # Delete old file if exists
             old_path = old.get('file_path', '')
             if old_path:
-                old_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), old_path)
+                old_abs = os.path.join(DATA_DIR, old_path)
                 _safe_remove(old_abs)
             # Save new file
             os.makedirs(UPLOAD_FOLDER, exist_ok=True)
             safe_name = f"{tid}_{uuid.uuid4().hex[:8]}.{ext}"
             file_path = os.path.join('upload', safe_name)
-            abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
+            abs_path = os.path.join(DATA_DIR, file_path)
             with open(abs_path, 'wb') as f:
                 f.write(file_data)
 
@@ -466,7 +685,7 @@ def template_delete(tid):
 
     old_path = old.get('file_path', '')
     if old_path:
-        old_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), old_path)
+        old_abs = os.path.join(DATA_DIR, old_path)
         _safe_remove(old_abs)
 
     details = {'name': old['name'], 'domain': old['domain'], 'notes': old['notes'],
@@ -484,7 +703,7 @@ def template_clear_all():
     for row in rows:
         fp = row.get('file_path', '')
         if fp:
-            abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), fp)
+            abs_path = os.path.join(DATA_DIR, fp)
             _safe_remove(abs_path)
     db.log_create('delete', 'template', None,
                   {'cleared_count': len(rows), 'cleared_ids': [r['id'] for r in rows]},
@@ -506,7 +725,7 @@ def template_download(tid):
 
     # Try serving from disk first
     if file_path:
-        abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
+        abs_path = os.path.join(DATA_DIR, file_path)
         if os.path.isfile(abs_path):
             return send_file(abs_path, as_attachment=True, download_name=filename, mimetype=mimetype)
 
@@ -661,6 +880,8 @@ def _reverse_operation(log_entry, statements):
             statements.append(("DELETE FROM tags WHERE id = %s", (log_entry['target_id'],)))
         elif target_type == 'user':
             statements.append(("DELETE FROM users WHERE id = %s", (log_entry['target_id'],)))
+        elif target_type == 'bilingual_corpus':
+            statements.append(("DELETE FROM bilingual_corpus WHERE id = %s", (log_entry['target_id'],)))
 
     elif action == 'delete':
         if target_type == 'expression':
@@ -688,6 +909,18 @@ def _reverse_operation(log_entry, statements):
                 ))
         elif target_type == 'tag':
             statements.append(("INSERT INTO tags (id, name) VALUES (%s,%s)", (log_entry['target_id'], details.get('name', ''))))
+        elif target_type == 'bilingual_corpus':
+            statements.append((
+                "INSERT INTO bilingual_corpus (id, chinese, other_lang, lang_code, source_type, source_file, notes, review_status, updated_by, updated_ip) VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s)",
+                (log_entry['target_id'], details.get('chinese', ''), details.get('other_lang', ''),
+                 details.get('lang_code', 'en'), details.get('source_type', 'sentence'), details.get('source_file', ''),
+                 details.get('notes', ''), get_operator(), get_ip())
+            ))
+            for tid in details.get('tags', []):
+                statements.append((
+                    "INSERT IGNORE INTO bilingual_corpus_tags (corpus_id, tag_id) VALUES (%s,%s)",
+                    (log_entry['target_id'], tid)
+                ))
 
     elif action == 'edit':
         before = details.get('before', {})
@@ -717,12 +950,59 @@ def _reverse_operation(log_entry, statements):
                 ))
         elif target_type == 'tag':
             statements.append(("UPDATE tags SET name=%s WHERE id=%s", (before, log_entry['target_id'])))
+        elif target_type == 'bilingual_corpus':
+            statements.append((
+                "UPDATE bilingual_corpus SET chinese=%s, other_lang=%s, lang_code=%s, source_type=%s, notes=%s, updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+                (before.get('chinese', ''), before.get('other_lang', ''), before.get('lang_code', 'en'),
+                 before.get('source_type', 'sentence'), before.get('notes', ''), get_operator(), get_ip(), log_entry['target_id'])
+            ))
+            statements.append(("DELETE FROM bilingual_corpus_tags WHERE corpus_id = %s", (log_entry['target_id'],)))
+            for tid in before.get('tags', []):
+                statements.append((
+                    "INSERT IGNORE INTO bilingual_corpus_tags (corpus_id, tag_id) VALUES (%s,%s)",
+                    (log_entry['target_id'], tid)
+                ))
 
     elif action == 'batch_add':
         ids = details.get('ids', [])
         if target_type == 'expression':
             for eid in ids:
                 statements.append(("DELETE FROM fixed_expressions WHERE id = %s", (eid,)))
+        elif target_type == 'bilingual_corpus':
+            for eid in ids:
+                statements.append(("DELETE FROM bilingual_corpus WHERE id = %s", (eid,)))
+
+    elif action == 'approve':
+        if target_type == 'bilingual_corpus':
+            # Reverse approval: delete the fixed_expression, re-insert into bilingual_corpus
+            if details.get('expression_id'):
+                statements.append(("DELETE FROM fixed_expressions WHERE id = %s", (details['expression_id'],)))
+            statements.append((
+                "INSERT INTO bilingual_corpus (id, chinese, other_lang, lang_code, source_type, source_file, notes, review_status, updated_by, updated_ip) VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s)",
+                (log_entry['target_id'], details.get('chinese', ''), details.get('other_lang', ''),
+                 details.get('lang_code', 'en'), details.get('source_type', 'sentence'),
+                 details.get('source_file', ''), details.get('notes', ''),
+                 get_operator(), get_ip())
+            ))
+            for tid in details.get('tags', []):
+                statements.append((
+                    "INSERT IGNORE INTO bilingual_corpus_tags (corpus_id, tag_id) VALUES (%s,%s)",
+                    (log_entry['target_id'], tid)
+                ))
+
+    elif action == 'reject':
+        if target_type == 'bilingual_corpus':
+            statements.append((
+                "UPDATE bilingual_corpus SET review_status='pending', updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+                (get_operator(), get_ip(), log_entry['target_id'])
+            ))
+
+    elif action == 'restore':
+        if target_type == 'bilingual_corpus':
+            statements.append((
+                "UPDATE bilingual_corpus SET review_status='rejected', updated_by=%s, updated_ip=%s, updated_at=NOW() WHERE id=%s",
+                (get_operator(), get_ip(), log_entry['target_id'])
+            ))
 
     statements.append(("UPDATE operation_logs SET rollback_of = %s WHERE id = %s", (lid, lid)))
 
@@ -822,7 +1102,7 @@ def _build_preview(row):
 
     file_path = row.get('file_path', '')
     if file_path:
-        abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
+        abs_path = os.path.join(DATA_DIR, file_path)
         if os.path.isfile(abs_path):
             try:
                 with open(abs_path, 'rb') as f:
@@ -864,11 +1144,38 @@ def _detect_columns(header):
 
 # ==================== MAIN ====================
 
+def _prompt_mysql_config():
+    print("=" * 50)
+    print("  MySQL 数据库连接配置")
+    print("=" * 50)
+    print("(支持环境变量: MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD)")
+    print()
+
+    host = os.environ.get('MYSQL_HOST') or input("主机地址 [localhost]: ").strip() or 'localhost'
+    port_str = os.environ.get('MYSQL_PORT') or input("端口 [3306]: ").strip() or '3306'
+    port = int(port_str)
+    user = os.environ.get('MYSQL_USER') or input("用户名 [root]: ").strip() or 'root'
+    if os.environ.get('MYSQL_PASSWORD'):
+        password = os.environ['MYSQL_PASSWORD']
+        print("密码: 从环境变量 MYSQL_PASSWORD 读取")
+    else:
+        password = getpass.getpass("密码: ").strip()
+        if not password:
+            password = '123456'
+            print("使用默认密码")
+
+    db.configure_db(host=host, port=port, user=user, password=password)
+    print()
+    print(f"连接目标: {user}@{host}:{port}")
+    print()
+
+
 if __name__ == '__main__':
+    _prompt_mysql_config()
     print("Initializing database...")
     db.init_db()
     print("Database ready.")
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     print(f"Upload folder ready: {UPLOAD_FOLDER}")
     print("Starting server on http://0.0.0.0:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)
