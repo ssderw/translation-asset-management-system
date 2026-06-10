@@ -189,6 +189,8 @@ body { background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Seg
                 <option value="rejected">已拒绝</option>
               </select>
               <button class="btn btn-primary btn-sm" id="bilingualAddBtn"><i class="bi bi-plus-lg"></i> 手动添加</button>
+              <button class="btn btn-outline-danger btn-sm" id="bilingualClearAllBtn"><i class="bi bi-trash"></i> 清空双语语料</button>
+              <button class="btn btn-outline-warning btn-sm" id="bilingualCleanInvalidBtn"><i class="bi bi-funnel"></i> 清理无效语料</button>
             </div>
           </div>
           <div class="filter-row mb-2">
@@ -1278,62 +1280,81 @@ $('#bdtSaveBtn').addEventListener('click', async () => {
   else { toast(d.message, 'danger'); }
 });
 
-$('#bdtDeleteBtn').addEventListener('click', () => {
-  showConfirm('确定删除该语料条目？', async () => {
-    await apiDelete(`/api/bilingual/${bilingualDetailId}`);
-    toast('已删除', 'success');
+$('#bdtDeleteBtn').addEventListener('click', async () => {
+  await apiDelete(`/api/bilingual/${bilingualDetailId}`);
+  toast('已删除', 'success');
+  bootstrap.Modal.getInstance('#bilingualDetailModal').hide();
+  loadBilingualManage();
+});
+
+$('#bdtApproveBtn').addEventListener('click', async () => {
+  const data = {
+    chinese: $('#bdtChinese').value.trim(),
+    other_lang: $('#bdtOther').value.trim(),
+    lang_code: $('#bdtLang').value,
+    source_type: $('#bdtSourceType').value,
+    source_file: $('#bdtSourceFile').value.trim(),
+    notes: $('#bdtNotes').value.trim(),
+    tag_ids: bilingualDetailTags.map(t => t.id)
+  };
+  if (!data.chinese || !data.other_lang) { toast('中文和译文为必填项', 'warning'); return; }
+  const saveResult = await apiPut(`/api/bilingual/${bilingualDetailId}`, data);
+  if (!saveResult.success) { toast(saveResult.message, 'danger'); return; }
+  const d = await apiPost(`/api/bilingual/${bilingualDetailId}/approve`);
+  if (d.success) {
+    toast(d.expression_id ? `已批准！新词条ID: ${d.expression_id}` : d.message, 'success');
     bootstrap.Modal.getInstance('#bilingualDetailModal').hide();
     loadBilingualManage();
-  });
+  } else {
+    toast(d.message, 'danger');
+  }
 });
 
-$('#bdtApproveBtn').addEventListener('click', () => {
-  showConfirm('确定批准该语料条目并转为固定表达？<br>此操作将把该条目转移到固定表达表中，并从语料表中删除。', async () => {
-    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/approve`);
-    if (d.success) { toast(`已批准！新词条ID: ${d.expression_id}`, 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
-    else { toast(d.message, 'danger'); }
-  });
+$('#bdtRejectBtn').addEventListener('click', async () => {
+  const d = await apiPost(`/api/bilingual/${bilingualDetailId}/reject`);
+  if (d.success) { toast('已拒绝', 'warning'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
 });
 
-$('#bdtRejectBtn').addEventListener('click', () => {
-  showConfirm('确定拒绝该语料条目？<br>状态将变为"已拒绝"', async () => {
-    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/reject`);
-    if (d.success) { toast('已拒绝', 'warning'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
-    else { toast(d.message, 'danger'); }
-  });
-});
-
-$('#bdtRestoreBtn').addEventListener('click', () => {
-  showConfirm('确定恢复该条目到待审核状态吗？', async () => {
-    const d = await apiPost(`/api/bilingual/${bilingualDetailId}/restore`);
-    if (d.success) { toast(d.message, 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
-    else { toast(d.message, 'danger'); }
-  });
+$('#bdtRestoreBtn').addEventListener('click', async () => {
+  const d = await apiPost(`/api/bilingual/${bilingualDetailId}/restore`);
+  if (d.success) { toast(d.message, 'success'); bootstrap.Modal.getInstance('#bilingualDetailModal').hide(); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
 });
 
 async function approveBilingual(eid) {
-  showConfirm('确定批准该语料条目并转为固定表达？', async () => {
-    const d = await apiPost(`/api/bilingual/${eid}/approve`);
-    if (d.success) { toast(`已批准！新词条ID: ${d.expression_id}`, 'success'); loadBilingualManage(); }
-    else { toast(d.message, 'danger'); }
-  });
+  const d = await apiPost(`/api/bilingual/${eid}/approve`);
+  if (d.success) { toast(d.expression_id ? `已批准！新词条ID: ${d.expression_id}` : d.message, 'success'); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
 }
 
 async function rejectBilingual(eid) {
-  showConfirm('确定拒绝该语料条目？', async () => {
-    const d = await apiPost(`/api/bilingual/${eid}/reject`);
-    if (d.success) { toast('已拒绝', 'warning'); loadBilingualManage(); }
-    else { toast(d.message, 'danger'); }
-  });
+  const d = await apiPost(`/api/bilingual/${eid}/reject`);
+  if (d.success) { toast('已拒绝', 'warning'); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
 }
 
 async function restoreBilingual(eid) {
-  showConfirm('确定要恢复该条目到待审核状态吗？', async () => {
-    const d = await apiPost(`/api/bilingual/${eid}/restore`);
+  const d = await apiPost(`/api/bilingual/${eid}/restore`);
+  if (d.success) { toast(d.message, 'success'); loadBilingualManage(); }
+  else { toast(d.message, 'danger'); }
+}
+
+$('#bilingualClearAllBtn').addEventListener('click', () => {
+  showConfirm('确定要清空所有双语语料吗？此操作不可逆！', async () => {
+    const d = await apiDelete('/api/bilingual/clear-all');
     if (d.success) { toast(d.message, 'success'); loadBilingualManage(); }
     else { toast(d.message, 'danger'); }
   });
-}
+});
+
+$('#bilingualCleanInvalidBtn').addEventListener('click', () => {
+  showConfirm('确定要清理无效语料吗？（中文外文相同、仅含数字和标点的语料将被删除）', async () => {
+    const d = await apiDelete('/api/bilingual/clean-invalid');
+    if (d.success) { toast(d.message, 'success'); loadBilingualManage(); }
+    else { toast(d.message, 'danger'); }
+  });
+});
 
 
 // ==================== TEMPLATE MANAGE ====================

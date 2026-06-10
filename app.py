@@ -440,6 +440,8 @@ def bilingual_approve(eid):
     new_eid = db.bilingual_approve(eid, get_operator(), get_ip())
     if new_eid is None:
         return jsonify({'success': False, 'message': '语料条目不存在或已被处理'}), 404
+    if new_eid == 0:
+        return jsonify({'success': True, 'message': '词条重复，语料条目已删除'})
     return jsonify({'success': True, 'expression_id': new_eid, 'message': '已批准并转为固定表达'})
 
 
@@ -520,6 +522,26 @@ def bilingual_matcher():
     lang_code = request.args.get('lang_code', '').strip() or None
     rows = db.bilingual_list_for_matcher(lang_code=lang_code)
     return jsonify({'data': rows})
+
+
+@app.route('/api/bilingual/clear-all', methods=['DELETE'])
+@login_required
+def bilingual_clear_all():
+    rows = db.bilingual_delete_all()
+    db.log_create('delete', 'bilingual_corpus', None,
+                  {'cleared_count': len(rows), 'cleared_ids': [r['id'] for r in rows]},
+                  get_operator(), get_ip())
+    return jsonify({'success': True, 'message': f'已清空 {len(rows)} 条双语语料', 'count': len(rows)})
+
+
+@app.route('/api/bilingual/clean-invalid', methods=['DELETE'])
+@login_required
+def bilingual_clean_invalid():
+    rows = db.bilingual_clean_invalid()
+    db.log_create('delete', 'bilingual_corpus', None,
+                  {'cleaned_count': len(rows), 'cleaned_ids': [r['id'] for r in rows]},
+                  get_operator(), get_ip())
+    return jsonify({'success': True, 'message': f'已清理 {len(rows)} 条无效语料', 'count': len(rows)})
 
 
 # ==================== TEMPLATES ====================

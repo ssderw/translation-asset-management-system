@@ -286,7 +286,7 @@ def expression_list(search=None, tag_id=None, page=1, per_page=10):
     data_sql = f"""
         SELECT DISTINCT e.* FROM fixed_expressions e{joins}
         {where_clause}
-        ORDER BY e.usage_count DESC, e.updated_at DESC
+        ORDER BY e.updated_at DESC
         LIMIT %s OFFSET %s
     """
     rows = query_all(data_sql, params + [per_page, offset])
@@ -478,6 +478,26 @@ def bilingual_delete(eid):
     execute("DELETE FROM bilingual_corpus WHERE id = %s", (eid,))
 
 
+def bilingual_delete_all():
+    rows = query_all("SELECT id, chinese, other_lang, lang_code FROM bilingual_corpus")
+    execute("DELETE FROM bilingual_corpus")
+    return rows
+
+
+def bilingual_clean_invalid():
+    rows = query_all("""
+        SELECT id, chinese, other_lang, lang_code FROM bilingual_corpus
+        WHERE chinese = other_lang
+           OR chinese REGEXP '^[0-9[:punct:][:space:]]+$'
+           OR other_lang REGEXP '^[0-9[:punct:][:space:]]+$'
+    """)
+    if rows:
+        ids = [r['id'] for r in rows]
+        placeholders = ','.join(['%s'] * len(ids))
+        execute(f"DELETE FROM bilingual_corpus WHERE id IN ({placeholders})", ids)
+    return rows
+
+
 def bilingual_autocomplete(q, tag_id=None, limit=8):
     like = f"%{_escape_like(q)}%"
     if tag_id:
@@ -538,7 +558,15 @@ def bilingual_approve(eid, operator='', ip=''):
             'notes': bc.get('notes', ''),
             'tags': tag_ids,
         }, operator, ip)
-    return new_eid
+        return new_eid
+    # Duplicate: delete corpus entry anyway
+    bilingual_delete(eid)
+    log_create('approve_duplicate', 'bilingual_corpus', eid, {
+        'chinese': bc['chinese'],
+        'other_lang': bc['other_lang'],
+        'note': 'fixed_expression already exists, corpus entry deleted',
+    }, operator, ip)
+    return 0
 
 
 def bilingual_reject(eid, operator='', ip=''):
@@ -598,7 +626,7 @@ def template_list(search=None, tag_id=None, page=1, per_page=10):
     data_sql = f"""
         SELECT DISTINCT t.* FROM templates t{joins}
         {where_clause}
-        ORDER BY t.usage_count DESC, t.updated_at DESC
+        ORDER BY t.updated_at DESC
         LIMIT %s OFFSET %s
     """
     rows = query_all(data_sql, params + [per_page, offset])
