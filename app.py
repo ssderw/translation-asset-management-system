@@ -855,11 +855,13 @@ def log_rollback(lid):
     target_log = db.log_get(lid)
     if not target_log:
         return jsonify({'success': False, 'message': '日志记录不存在'}), 404
+    if target_log.get('target_type') in ('template', 'bilingual_corpus'):
+        return jsonify({'success': False, 'message': '模板和双语语料操作不支持回撤'}), 400
     if target_log.get('rollback_of') is not None:
         return jsonify({'success': False, 'message': '该操作已被回撤'}), 400
 
     all_logs = db.log_get_since(lid)
-    unrolled = [l for l in all_logs if l.get('rollback_of') is None]
+    unrolled = [l for l in all_logs if l.get('rollback_of') is None and l['target_type'] not in ('template', 'bilingual_corpus')]
 
     if len(unrolled) > 10:
         return jsonify({'success': False, 'message': '只能回撤最近10次操作'}), 400

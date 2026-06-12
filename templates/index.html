@@ -1622,7 +1622,7 @@ async function loadLogsPage(page = 1) {
   if (!d.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无日志</td></tr>'; $('#logsPager').innerHTML = ''; return; }
   tbody.innerHTML = d.data.map(l => {
     const isRolledBack = l.rollback_of !== null;
-    const canRollback = !isRolledBack && (l.action_type === 'add' || l.action_type === 'edit' || l.action_type === 'delete' || l.action_type === 'approve' || l.action_type === 'reject' || l.action_type === 'restore');
+    const canRollback = !isRolledBack && l.target_type !== 'template' && l.target_type !== 'bilingual_corpus' && (l.action_type === 'add' || l.action_type === 'edit' || l.action_type === 'delete' || l.action_type === 'approve' || l.action_type === 'reject' || l.action_type === 'restore');
     const actionName = LOG_ACTION_MAP[l.action_type] || l.action_type;
     const targetName = LOG_TARGET_MAP[l.target_type] || l.target_type;
     return `<tr>
